@@ -1456,6 +1456,22 @@ class PSG(object):
         ax.set_yscale("log")
         ax.xaxis.grid(True)
         fig.savefig("{}_noisppm.png".format(self._file_stem))
+        plt.close(fig)
+
+    def depth_noise(self):
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.gca()
+        real_depth = (-self.Transit+np.random.normal(0, self.nTotal)
+                      )/self.Stellar
+        ax.step(self.Wavelengths, real_depth * 1e6, linewidth=0.5, c="b",
+                where="post")
+        ax.set_title("Depth Plotted with Noise\n{}".format(
+            self._title_stem))
+        ax.set_xlabel("Wavelengths ($\mu m$)")
+        ax.set_ylabel("Depth (ppm)")
+        ax.set_xlim(*self._plot_range)
+        ax.xaxis.grid(True)
+        fig.savefig("{}_depth_nois.png".format(self._file_stem))
         plt.cla()
 
 

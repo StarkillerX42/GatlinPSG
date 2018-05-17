@@ -1,19 +1,18 @@
 import glob
-
 import PSG
 
-gcmfiles = glob.glob('*terminator.txt')
-# print (gcmfiles)
+gcm_files = glob.glob('*terminator.txt')
+# print (gcm_files)
 filecount = 1
-for i, fil in enumerate(gcmfiles):
+for i, fil in enumerate(gcm_files):
     print("")
     print("File {}: {}".format(i + 1, fil))
     x = PSG.PSG("TRAPPIST-1 e", fil, scope='MIRI-MRS', is_earth=False,
-                atmosphere_ceiling=1e-6, n_uplayers=7, exposure_time=15,
-                exposure_count=114)
+                atmosphere_ceiling=1e-6, n_uplayers=7, exposure_time=16,
+                exposure_count=114*10)
     x.calculate(skprow=11)
     x.write()
-    x.send(run=False)
+    x.send(run=True)
     x.plot_setup()
     x.depth_plot()
     x.depth_height()
@@ -36,4 +35,5 @@ for i, fil in enumerate(gcmfiles):
     x.trn_all()
     x.noise_components()
     x.noise_ppm()
+    x.depth_noise()
 print("PSG: Operation complete")
