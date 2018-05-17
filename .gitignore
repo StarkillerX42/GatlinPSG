@@ -1,3 +1,8 @@
 *.png
 *psgoutput*.txt
-
+*aqua*.txt
+*.pyc
+*ALMA*
+*UROP*
+*urop*
+*Phase_Curves*
