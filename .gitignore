@@ -1,9 +1,5 @@
 *.png
-*psgoutput*.txt
-*aqua*.txt
 *.pyc
-*ALMA*
-*UROP*
-*urop*
-*Phase_Curves*
-*All_Models*
+ALMA
+UROP
+__pycache__
