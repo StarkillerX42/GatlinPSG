@@ -7,7 +7,7 @@ filecount = 1
 for i, fil in enumerate(gcm_files):
     print("")
     print("File {}: {}".format(i + 1, fil))
-    x = PSG.PSG("TRAPPIST-1 e", fil, scope='MIRI-MRS', is_earth=False,
+    x = PSG.PSG("TRAPPIST-1 e", fil, scope='MIRI-MRS',
                 atmosphere_ceiling=1e-6, n_uplayers=7, exposure_time=16,
                 exposure_count=114*10)
     x.calculate(skprow=11)
@@ -31,7 +31,7 @@ for i, fil in enumerate(gcm_files):
     x.trn_cloud()
     x.trn_cia()
     x.trn_species()
-    x.trn_aero()
+    x.trn_aerosols()
     x.trn_all()
     x.noise_components()
     x.noise_ppm()

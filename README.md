@@ -7,13 +7,15 @@ Currently, psginput files are available on github, which can be used to send to 
 ## Running The PSG via PSG.py:
 The PSG is a cool tool, but there are many steps which need to be completed before you put things in as inputs to the PSG, and there's a lot of work to do before you get reasonable results back, which is what this repository is for. In order to run the PSG, run the line
 ```foo = PSG.PSG(*args)
-foo.calculate() # This line creates things like a planet_data dictionary, a star_data dictionary
+foo.calculate(*args) # This line creates things like a planet_data dictionary, a star_data dictionary
 # an astropy table of the atmosphere called atmosphere, and much more
 foo.write() # This line creates a psginput.txt file which will be sent to the PSG
 foo.send(*args) # This sends the file to the PSG using the curl API and deletes unwanted files
 foo.plot_setup() # This prepares you for running the plot commands by unpacking the PSG output files
 ```
 
+## Running  PSG via jupyter notebook
+In jupyter notebook, you have some added flexibility to interact with the results. Fortunately, PSG.py has been optimized for this purpose. In order to perform
 ## Standard Transits
 This is the main pipeline with nothing fancy added to it, focusing on the 1barN2 0.4barCO2 model using MIRI-MRS. It produces the most reliable results.
 

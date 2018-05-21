@@ -1,10 +1,8 @@
-import csv
-import glob
 import os
 import time
-import matplotlib.pyplot as plt
-import numpy as np
 import astropy.table
+import numpy as np
+import matplotlib.pyplot as plt
 
 __author__ = "Dylan_Gatlin"
 __version__ = 3.6
@@ -21,7 +19,7 @@ class PSG(object):
     these makes a single plot where you replace <PlotFunction> with
     depth_plot, emission, absorption, raw, star, signal_and_noise,
     signal_noise_ratio, trn_total,trn_co2, trn_n2, trn_h2o, trn_ice,
-    trn_cloud, trn_cia, trn_species,trn_aero,trn_all, noise_components. You
+    trn_cloud, trn_cia, trn_species,trn_aerosols,trn_all, noise_components. You
     can run all of them sequentially if intended, but not before plot_setup()
 
     Required Files, Arguments, and Keyword Arguments: PSG.PSG.write():
@@ -76,14 +74,12 @@ class PSG(object):
         phase: (float) The angle of the observer, with 180 being a perfect
         transit or alternatively (str) "file", if the angle is in the file_name
 
-        skprow: (int)The number of rows to skip in input file
-
         Returns: A file ending in psginput.txt in your directory.
 
     Required Files, Arguments, and Keyword Arguments: PSG.PSG.Run():
     This function send the the file file_name to the NASA GSFC PSG for analysis.
-    It will not return anything, but will write files in the curent directory.
-    If you want it to return a filetype it doesn"t, hashtag out one of the
+    It will not return anything, but will write files in the current directory.
+    If you want it to return a file type it doesn't, hashtag out one of the
     lower lines so that the necessary file isn"t deleted.
 
         Required Files:
@@ -104,19 +100,16 @@ class PSG(object):
     Required Files, Arguments, and Keyword Arguments: PSG.PSG.plot_setup():
         None, If you have run the previous commands in order, it will run
 
-    Requires LaTeX installed, siunitx, cmbright, type1cm, l3kernel, l3packages,
-    beamer, zhmetrics to run all the plots
-
     """
 
     def __init__(self, planet_name: str,
                  file_name: str,
-                 scope: str = "MIRI-MRS",
-                 is_earth: bool = False,
+                 scope: str="MIRI-MRS",
+                 is_earth: bool=False,
                  atmosphere_ceiling=0,
-                 n_uplayers: int = 0,
-                 exposure_time=1000,
-                 exposure_count: int = 110,
+                 n_uplayers: int=0,
+                 exposure_time=16,
+                 exposure_count: int=110,
                  phase=180):
         super(PSG, self).__init__()
         self.planet = planet_name
@@ -139,6 +132,7 @@ class PSG(object):
         # PSG Variables
         self.is_transit = None
         self.returned_files = None
+
         # Plot variables
         self._psginput_name = None
         self._plot_range = None
@@ -166,9 +160,14 @@ class PSG(object):
         self.nTelescope = None
         self.nBackground = None
 
-    def calculate(self, skprow: int = 11):
+    def calculate(self, skprow: int=11):
 
-        """See PSG parent class docstring for details"""
+        """See PSG parent class docstring for details.
+
+        Arguments:
+            skprow: int, The number of lines to skip in np.loadtxt of the
+            input file. This is the same argument as skiprows in np.loadtxt,
+            but the name is changed to clarify arguments."""
         print("Calculating Planet Data")
         # See if we need a new/updated exoplanet"s list
         if not os.path.isfile("exoplanets.txt"):
@@ -182,36 +181,33 @@ class PSG(object):
                 need_file = False
         if need_file:
             print("Retrieving planet variables from NASA's Exoplanet Archive")
-            import urllib3
-            import certifi
-            http = urllib3.PoolManager(cert_reqs="CERT_REQUIRED",
-                                       ca_certs=certifi.where())
-            r = http.request("GET",
-                             "https://exoplanetarchive.ipac.caltech.edu/cgi"
+            import requests
+            r = requests.get("https://exoplanetarchive.ipac.caltech.edu/cgi"
                              "-bin/nstedAPI/nph-nstedAPI?table=exoplanets"
                              "&select=pl_name,pl_masse,pl_rade,pl_orbsmax,"
                              "pl_orbincl,pl_trandep,st_teff,st_rad,st_radv,"
                              "st_dist,st_optmag,pl_insol&format=csv")
-            lines = str(r.data)[2:].split("\\n")
-            with open("exoplanets.txt", "w") as fil:
+            lines = r.text[2:].splitlines()
+            with open("exoplanets.csv", "w") as fil:
                 for line in lines:
                     fil.write(line + "\n")
         # Extracts necessary details about the exoplanet from NASA"s API
+        # Defines
         (planet_name, planet_emass, planet_erad,
          sma, inclination, transit_depth,
          star_temp, star_srad, star_velocity,
          star_distance, star_magnitude,
          insolation) = [None] * 12
-        with open("exoplanets.txt", "r") as file:
-            planet_list = csv.reader(file, delimiter=",")
-            for line in planet_list:
-                if line[0] == self.planet:
-                    (planet_name, planet_emass, planet_erad,
-                     sma, inclination, transit_depth,
-                     star_temp, star_srad, star_velocity,
-                     star_distance, star_magnitude,
-                     insolation) = line
-        if planet_name == "":
+        exoplanets = np.loadtxt("exoplanets.txt", delimiter=",", skiprows=1,
+                                dtype=np.str,  comments="'")
+        if sum(exoplanets[:, 0] == self.planet) == 1:
+            line = exoplanets[exoplanets[:, 0] == self.planet]
+            (planet_name, planet_emass, planet_erad,
+             sma, inclination, transit_depth,
+             star_temp, star_srad, star_velocity,
+             star_distance, star_magnitude,
+             insolation) = line
+        else:
             print("    Planet not found")
             exit()
         if star_velocity == "":
@@ -1016,7 +1012,7 @@ class PSG(object):
             command = "curl -d type=all --data-urlencode file@{} " \
                       "https://psg.gsfc.nasa.gov/api.php > {}" \
                 .format(self._psginput_name, alloutputname)
-            print("    {}".format(command))
+            # print("    {}".format(command))
             os.system(command)
         print("    Successfully connected to NASA PSG")
         with open(alloutputname, "r+") as allfile:
@@ -1112,7 +1108,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_dpth.png".format(self._file_stem))
-        plt.cla()
 
     def depth_height(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1131,7 +1126,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_dpthh.png".format(self._file_stem))
-        plt.cla()
 
     def emission(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1145,7 +1139,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_emis.png".format(self._file_stem))
-        plt.cla()
 
     def absorption(self):
         print("    Planet blackbody peak wavelength: {:.2f}um".format(
@@ -1176,7 +1169,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_abso.png".format(self._file_stem))
-        plt.cla()
 
     def raw(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1190,7 +1182,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_raw.png".format(self._file_stem))
-        plt.cla()
 
     def star(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1204,7 +1195,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_star.png".format(self._file_stem))
-        plt.cla()
 
     def signal_and_noise(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1222,7 +1212,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_sann.png".format(self._file_stem))
-        plt.cla()
 
     def signal_noise_ratio(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1238,7 +1227,6 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_snr.png".format(self._file_stem))
-        plt.cla()
 
     def trn_total(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1253,7 +1241,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tttl.png".format(self._file_stem))
-        plt.cla()
 
     def trn_co2(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1268,7 +1255,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tCO2.png".format(self._file_stem))
-        plt.cla()
 
     def trn_n2(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1283,7 +1269,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tN2.png".format(self._file_stem))
-        plt.cla()
 
     def trn_h2o(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1298,7 +1283,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tH2O.png".format(self._file_stem))
-        plt.cla()
 
     def trn_ice(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1313,7 +1297,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tice.png".format(self._file_stem))
-        plt.cla()
 
     def trn_cloud(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1328,7 +1311,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tcld.png".format(self._file_stem))
-        plt.cla()
 
     def trn_cia(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1343,7 +1325,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tcia.png".format(self._file_stem))
-        plt.cla()
 
     def trn_species(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1365,9 +1346,8 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tspc.png".format(self._file_stem))
-        plt.cla()
 
-    def trn_aero(self):
+    def trn_aerosols(self):
         fig = plt.figure(figsize=(10, 6))
         ax = fig.gca()
         ax.step(self.Wavelengths, self.tTotalSpec, linewidth=0.5, c="g",
@@ -1387,7 +1367,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_taer.png".format(self._file_stem))
-        plt.cla()
 
     def trn_all(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1414,7 +1393,6 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tall.png".format(self._file_stem))
-        plt.cla()
 
     def noise_components(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1440,7 +1418,6 @@ class PSG(object):
         ax.set_yscale("log")
         ax.xaxis.grid(True)
         fig.savefig("{}_nois.png".format(self._file_stem))
-        plt.cla()
 
     def noise_ppm(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1456,7 +1433,6 @@ class PSG(object):
         ax.set_yscale("log")
         ax.xaxis.grid(True)
         fig.savefig("{}_noisppm.png".format(self._file_stem))
-        plt.close(fig)
 
     def depth_noise(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1472,7 +1448,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_depth_nois.png".format(self._file_stem))
-        plt.cla()
+        
 
 
 class PSGCompared(object):
@@ -1482,6 +1458,7 @@ class PSGCompared(object):
 
     def __init__(self, radfiles):
         super(PSGCompared, self).__init__()
+        import glob
         self.radfiles = glob.glob(radfiles)
         self.colors = ["r", "orange", "green", "yellowgreen", "orange",
                        "yellowgreen", "g", "b", "indigo", "m", "r",
@@ -1531,7 +1508,7 @@ class PSGCompared(object):
             ax = plt.axes()
             ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "N2CombinedPlots.png", dpi=300)
-        plt.cla()
+        
 
     def NoN2CombPlot(self):
         fig = plt.figure(figsize=(12, 15))
@@ -1567,7 +1544,7 @@ class PSGCompared(object):
             ax = plt.axes()
             ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "NoN2CombinedPlots.png", dpi=300)
-        plt.cla()
+        
 
     def PeakCompare(self):
         fig = plt.figure(figsize=(8, 6))
@@ -1605,7 +1582,7 @@ class PSGCompared(object):
         ax = plt.axes()
         ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "PeakCompare.png", dpi=300)
-        plt.cla()
+        
 
 
 def PSGCompare(filename):
