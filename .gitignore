@@ -1,5 +1,5 @@
 *.png
 *.pyc
-*ALMA/*
-*UROP/*
+ALMA
+UROP
 __pycache__
