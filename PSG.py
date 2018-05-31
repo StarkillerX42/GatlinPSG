@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 
 __author__ = "Dylan_Gatlin"
 __version__ = 3.6
-
+scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS", "NIRSpec-1000",
+          "NIRSpec-2700", "NIRSpec-Prism", "Hubble", "Spitzer-Short-High",
+          "ALMA_Band_7"]
 
 class PSG(object):
     """Parent class for all PSG Operations, including config file writing,
@@ -42,7 +44,7 @@ class PSG(object):
 
         planet: (str) The name of the planet according to NASA"s API.
         For a list of known planets, run this function with a dummy planet name
-        and read through exoplanets.txt, which should appear in your directory.
+        and read through exoplanets.csv, which should appear in your directory.
 
         file_name: (str) The name of the file which you would like to read in,
         described above
@@ -170,10 +172,10 @@ class PSG(object):
             but the name is changed to clarify arguments."""
         print("Calculating Planet Data")
         # See if we need a new/updated exoplanet"s list
-        if not os.path.isfile("exoplanets.txt"):
+        if not os.path.isfile("exoplanets.csv"):
             need_file = True
         else:
-            st = os.stat("exoplanets.txt")
+            st = os.stat("exoplanets.csv")
             age = time.time() - st.st_mtime
             if age > (3600 * 24 * 2.0):
                 need_file = True
@@ -198,10 +200,10 @@ class PSG(object):
          star_temp, star_srad, star_velocity,
          star_distance, star_magnitude,
          insolation) = [None] * 12
-        exoplanets = np.loadtxt("exoplanets.txt", delimiter=",", skiprows=1,
+        exoplanets = np.loadtxt("exoplanets.csv", delimiter=",", skiprows=1,
                                 dtype=np.str,  comments="'")
         if sum(exoplanets[:, 0] == self.planet) == 1:
-            line = exoplanets[exoplanets[:, 0] == self.planet]
+            line = exoplanets[exoplanets[:, 0] == self.planet][0]
             (planet_name, planet_emass, planet_erad,
              sma, inclination, transit_depth,
              star_temp, star_srad, star_velocity,
@@ -1108,6 +1110,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_dpth.png".format(self._file_stem))
+        plt.close(fig)
 
     def depth_height(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1126,6 +1129,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_dpthh.png".format(self._file_stem))
+        plt.close(fig)
 
     def emission(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1139,6 +1143,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_emis.png".format(self._file_stem))
+        plt.close(fig)
 
     def absorption(self):
         print("    Planet blackbody peak wavelength: {:.2f}um".format(
@@ -1169,6 +1174,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_abso.png".format(self._file_stem))
+        plt.close(fig)
 
     def raw(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1182,6 +1188,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_raw.png".format(self._file_stem))
+        plt.close(fig)
 
     def star(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1195,6 +1202,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_star.png".format(self._file_stem))
+        plt.close(fig)
 
     def signal_and_noise(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1212,6 +1220,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_sann.png".format(self._file_stem))
+        plt.close(fig)
 
     def signal_noise_ratio(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1227,6 +1236,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_snr.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_total(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1241,6 +1251,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tttl.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_co2(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1255,6 +1266,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tCO2.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_n2(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1269,6 +1281,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tN2.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_h2o(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1283,6 +1296,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tH2O.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_ice(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1297,6 +1311,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tice.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_cloud(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1311,6 +1326,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tcld.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_cia(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1325,6 +1341,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tcia.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_species(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1337,7 +1354,7 @@ class PSG(object):
                 where="post")
         ax.step(self.Wavelengths, self.tH2OSpec, linewidth=0.5, c="b",
                 alpha=0.2, where="post")
-        plt.legend(["Total", "CO2", "N2", "H2O"], loc=4)
+        ax.legend(["Total", "CO2", "N2", "H2O"], loc=4)
         ax.set_title("Species Transmittance\n{}".format(
             self._title_stem))
         ax.set_xlabel("Wavelengths ($\mu m$)")
@@ -1346,6 +1363,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tspc.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_aerosols(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1358,7 +1376,7 @@ class PSG(object):
                 where="post")
         ax.step(self.Wavelengths, self.tCIASpec, linewidth=0.5, c="red",
                 where="post")
-        plt.legend(["Total", "Ice", "Cloud", "tCIASpec"], loc=4)
+        ax.legend(["Total", "Ice", "Cloud", "tCIASpec"], loc=4)
         ax.set_title("tCIASpec Transmittance\n{}".format(
             self._title_stem))
         ax.set_xlabel("Wavelengths ($\mu m$)")
@@ -1367,6 +1385,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_taer.png".format(self._file_stem))
+        plt.close(fig)
 
     def trn_all(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1393,6 +1412,7 @@ class PSG(object):
         ax.set_ylim(0, 1.1)
         ax.xaxis.grid(True)
         fig.savefig("{}_tall.png".format(self._file_stem))
+        plt.close(fig)
 
     def noise_components(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1418,6 +1438,7 @@ class PSG(object):
         ax.set_yscale("log")
         ax.xaxis.grid(True)
         fig.savefig("{}_nois.png".format(self._file_stem))
+        plt.close(fig)
 
     def noise_ppm(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1433,6 +1454,7 @@ class PSG(object):
         ax.set_yscale("log")
         ax.xaxis.grid(True)
         fig.savefig("{}_noisppm.png".format(self._file_stem))
+        plt.close(fig)
 
     def depth_noise(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1448,6 +1470,7 @@ class PSG(object):
         ax.set_xlim(*self._plot_range)
         ax.xaxis.grid(True)
         fig.savefig("{}_depth_nois.png".format(self._file_stem))
+        plt.close(fig)
         
 
 
@@ -1502,7 +1525,7 @@ class PSGCompared(object):
         ax.set_xlim(np.min(self.WavelengthSpec) - 2,
                  np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
-        leg = plt.legend(loc=2, fontsize=15)
+        leg = ax.legend(loc=2, fontsize=15)
         for label in leg.get_lines():
             label.set_linewidth(4)
             ax = plt.axes()
@@ -1538,7 +1561,7 @@ class PSGCompared(object):
         ax.set_xlim(np.min(self.WavelengthSpec) - 2,
                  np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
-        leg = plt.legend(loc=2, fontsize=15)
+        leg = ax.legend(loc=2, fontsize=15)
         for label in leg.get_lines():
             label.set_linewidth(4)
             ax = plt.axes()
@@ -1576,7 +1599,7 @@ class PSGCompared(object):
         ax.set_title("Peak Transit TransitDepth")
         plt.xlabel(r"CO$_{2}$ Abundance ($\si{\bar}$)")
         plt.set_ylabel("Peak Signal (ppm)")
-        leg = plt.legend(loc=4)
+        leg = ax.legend(loc=4)
         """for label in leg.get_lines():
             label.set_linewidth(4)"""
         ax = plt.axes()

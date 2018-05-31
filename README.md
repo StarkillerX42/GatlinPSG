@@ -15,7 +15,7 @@ foo.plot_setup() # This prepares you for running the plot commands by unpacking 
 ```
 
 ## Running  PSG via jupyter notebook
-In jupyter notebook, you have some added flexibility to interact with the results. Fortunately, PSG.py has been optimized for this purpose. In order to perform
+In jupyter notebook, you have some added flexibility to interact with the results. Fortunately, PSG.py has been optimized for this purpose. In order to interact with the data, some python dictionaries are created to store meaningful values. `planet_data` and `star_data`. There is also an astropy table of the atmosphere profile called `atmosphere`. Those are the most useful values, but there is also `n_layers`, `n_downlayers`, and `n_uplayers`. Each of which describes the layers in each section of the atmosphere. The downlayers are given by the input files, the uplayers are isothermal layers in the upper atmosphere
 ## Standard Transits
 This is the main pipeline with nothing fancy added to it, focusing on the 1barN2 0.4barCO2 model using MIRI-MRS. It produces the most reliable results.
 
