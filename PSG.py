@@ -9,30 +9,24 @@ __version__ = 3.6
 scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS", "NIRSpec-1000",
           "NIRSpec-2700", "NIRSpec-Prism", "Hubble", "Spitzer-Short-High",
           "ALMA_Band_7"]
+rad_unit_types = ["rel", "rkm", "Wsrm2um"]
+file_types = ["trn", "lyr", "rad", "noi", "log", "atm", "err"]
+
 
 class PSG(object):
-    """Parent class for all PSG Operations, including config file writing,
-    sending files to the PSG, and plotting. To properly use this, run the
-    commands in the following order: x=PSG.PSG(*args,**kwargs) x.calculate()
-    # This function defines everything we need for PSG x.write()  # This
-    function writes what PSG needs to a PSG-friendly file x.Run(**kwargs)  #
-    This sends the data to PSG and gets a response x.plot_setup()  # This
-    does the background unpacking to plot things x.<PlotFunction>  # Each of
-    these makes a single plot where you replace <PlotFunction> with
-    depth_plot, emission, absorption, raw, star, signal_and_noise,
-    signal_noise_ratio, trn_total,trn_co2, trn_n2, trn_h2o, trn_ice,
-    trn_cloud, trn_cia, trn_species,trn_aerosols,trn_all, noise_components. You
-    can run all of them sequentially if intended, but not before plot_setup()
+    """This class is meant to help interface between NASA's PSG and climate
+    models. The goal is to create a versatile PSG object which can be
+    interacted with via jupyter notebooks. The proper way to run the PSG is:
 
-    Required Files, Arguments, and Keyword Arguments: PSG.PSG.write():
+    planet = PSG.PSG(planet_name, file_name, is_earth, astmosphere_ceiling,
+                     n_uplayers, phase)
+    planet.calculate(skprows)
+    planet.write(scope, exposure_time, exposure_count, rad_units)
+    planet.send(run)
+    planet.plot_setup()
+    planet.<plot_function>
 
-        This function will take a planet name and return a config file in the
-        formats necessary to run in the NASA Goddard Planetary Spectrum
-        Generator. The planet name must be in the same format as NASA's
-        Exoplanet API archive. This means "TRAPPIST-1 e" is valid,
-        but "trappist1e" is not.
-
-        Required Files:
+    Required Files:
 
         In the folder you"re running this, one file must be accessible.
         file_name, a text file following Eric Wolf's formatting file_name must
@@ -40,21 +34,14 @@ class PSG(object):
         formatted file. If the observation phase is different than 180, the
         corresponding atmosphere profile must be given.
 
-        Arguments:
+    PSG Init Arguments:
 
-        planet: (str) The name of the planet according to NASA"s API.
+        planet_name: (str) The name of the planet according to NASA"s API.
         For a list of known planets, run this function with a dummy planet name
         and read through exoplanets.csv, which should appear in your directory.
 
         file_name: (str) The name of the file which you would like to read in,
-        described above
-
-        Keyword Arguments:
-
-        scope: (str) The name of the scope you are observing with. "MIRI-LRS",
-        "MIRI-MRS","NIRISS-SOSS","NIRCam-Grism","NIRSpec-1000",
-        "NIRSpec-2700", "NIRSpec-Prism", "Hubble" and "Spitzer-Short-High"are
-        currently supported. "MIRI-MRS" is the default
+        described above.
 
         is_earth: (bool)Whether or not this planet is a fake exoplanet with
         the same mass and radius as Earth If is_earth is True, the planet
@@ -62,66 +49,53 @@ class PSG(object):
 
         atmosphere_ceiling: (float)The pressure where the atmosphere ends
         The PSG will only produce useful results if there are layers at
-        extremely low pressure_profile. If the atmosphere layers don't go to low
-        pressure_profile, imaginary isothermal layers can be added. Default is
-        zero, which will use only the given profile
+        extremely low pressure_profile. If the atmosphere profile isn't high
+        enough, imaginary upper layers can be added. Default is 0., but 1e-6
+        is recommended
 
         n_uplayers: (int) The number of isothermal layers between the top given
         layer and the top of the atmosphere
 
-        exposure_time: (float) The exposure time of an image
+        phase: The orbital phase, 180 is a transit, 0 is an occultation
 
-        exposure_count: (integer) The number of exposures
-        
-        phase: (float) The angle of the observer, with 180 being a perfect
-        transit or alternatively (str) "file", if the angle is in the file_name
+    PSG.calculate Arguments:
 
-        Returns: A file ending in psginput.txt in your directory.
+        skprow: The argument skiprows from np.loadtxt, telling you how many
+        rows to skip from the atmopshere profile file.
 
-    Required Files, Arguments, and Keyword Arguments: PSG.PSG.Run():
-    This function send the the file file_name to the NASA GSFC PSG for analysis.
-    It will not return anything, but will write files in the current directory.
-    If you want it to return a file type it doesn't, hashtag out one of the
-    lower lines so that the necessary file isn"t deleted.
+    PSG.write Arguments:
 
-        Required Files:
+        scope: The scope used in the observation. For a list of possible inputs
+        look at PSG.scopes
 
-        A single file _psginput.txt or any other config file if you specify
-        self._psginput_name to be something else
-        Arguments:
+        exposure time: The length of each exposure
+
+        exposure count: The number of exposures
+
+        rad_units: The type of return from the PSG. For a list of possible
+        values, check PSG.rad_unit_types
+
+    PSG.send Arguments
+
+        run: A bool of whether or not to actually send it to PSG. If you ran it
+        recently, skipping this step will save time.
+
+        keep_files: A tuple of file types you'd like returned. For a list of
+        file types, check PSG.file_types
+
+    PSG.plot_setup Arguments
+
         None
-
-        pln,cfg,lay,noi,rad,str,trn,all,err (bool) True if you would like
-        that type of file as output, False if you do not. The most useful
-        files default to True, the unusual ones default to False. noi, rad,
-        and trn are all True pln, cfg,lay,str, all are all False. lay if
-        probably the most useful of the ones not left True by default. err is
-        only referenced if there is an error. It should be left True always.
-        If there is a err.txt file, you should read it
-
-    Required Files, Arguments, and Keyword Arguments: PSG.PSG.plot_setup():
-        None, If you have run the previous commands in order, it will run
-
     """
 
-    def __init__(self, planet_name: str,
-                 file_name: str,
-                 scope: str="MIRI-MRS",
-                 is_earth: bool=False,
-                 atmosphere_ceiling=0,
-                 n_uplayers: int=0,
-                 exposure_time=16,
-                 exposure_count: int=110,
-                 phase=180):
+    def __init__(self, planet_name: str, file_name: str, is_earth: bool=False,
+                 atmosphere_ceiling=0, n_uplayers: int=0, phase=180):
         super(PSG, self).__init__()
         self.planet = planet_name
         self.file_name = file_name
-        self.scope = scope
         self.is_earth = is_earth
         self.atmosphere_ceiling = atmosphere_ceiling
         self.n_uplayers = n_uplayers
-        self.exposure_time = exposure_time
-        self.exposure_count = exposure_count
         self.phase = phase
 
         # Planet Variables
@@ -132,6 +106,10 @@ class PSG(object):
         self.n_layers = None
 
         # PSG Variables
+        self.scope = None
+        self.exposure_time = None
+        self.exposure_count = None
+        self.rad_units = None
         self.is_transit = None
         self.returned_files = None
 
@@ -412,8 +390,12 @@ class PSG(object):
                 i += 1
             self.n_layers = self.n_downlayers + self.n_uplayers
 
-    def write(self):
-        # This concludes the calculations, the rest is psg input writing
+    def write(self, scope: str="MIRI-MRS", exposure_time=16,
+              exposure_count: int=110, rad_units: str="rel"):
+        self.scope = scope
+        self.exposure_time = exposure_time
+        self.exposure_count = exposure_count
+        self.rad_units = rad_units
         self._psginput_name = ""
         if "aqua" in self.file_name:
             self._psginput_name += self.file_name.split("_aqua")[0]
@@ -520,7 +502,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 5.00-12.00 um with a "
                     "resolution of 100 RP. Molecular radiative-transfer "
@@ -567,7 +550,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 5.00-28.30 um with a "
                     "resolution of 2400 RP. Molecular radiative-transfer "
@@ -613,7 +597,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 2.50-5.00 um"
                     "with a resolution of 1600 RP. Molecular radiative-transfer"
@@ -660,7 +645,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 0.60-2.80 um with a "
                     "resolution of 700 RP. Molecular radiative-transfer "
@@ -707,7 +693,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 1.00-5.30 um with a "
                     "resolution of 1000 RP. Molecular radiative-transfer "
@@ -753,7 +740,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 1.00-5.30 um with a "
                     "resolution of 2700 RP. Molecular radiative-transfer "
@@ -800,7 +788,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 0.70-5.00 um with a "
                     "resolution of 100 RP. Molecular radiative-transfer "
@@ -846,7 +835,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 0.84-1.65 um with a "
                     "resolution of 170 RP. Molecular radiative-transfer "
@@ -884,7 +874,8 @@ class PSG(object):
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
-                results.write("<GENERATOR-RADUNITS>Wsrm2um\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
                 results.write(
                     "<GENERATOR-SUMMARY>Wavelengths range 9.9-19.6 um with a "
                     "resolution of 600 RP. Molecular radiative-transfer "
@@ -1101,9 +1092,9 @@ class PSG(object):
         fig = plt.figure(figsize=(10, 6))
         ax = plt.gca()
         ax.step(self.Wavelengths, -self.Transit / self.Stellar * 1e+6,
-                linewidth=0.25, c="b", label="Transit TransitDepth ",
+                linewidth=0.25, c="b", label="Transit Depth",
                 where="post")
-        ax.set_title("Transit TransitDepth Without Noise\n{}".format(
+        ax.set_title("Transit Depth Without Noise\n{}".format(
             self._title_stem))
         ax.set_xlabel(r"Wavelengths ($\mu m$)")
         ax.set_ylabel("Signal (ppm)")
@@ -1471,7 +1462,6 @@ class PSG(object):
         ax.xaxis.grid(True)
         fig.savefig("{}_depth_nois.png".format(self._file_stem))
         plt.close(fig)
-        
 
 
 class PSGCompared(object):

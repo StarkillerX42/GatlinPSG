@@ -5,17 +5,23 @@ This is a project analyzing exoplanet transit spectra using Eric T. Wolf's clima
 Currently, psginput files are available on github, which can be used to send to the PSG manually, but Eric's terminator profiles are not available, so the code will not run properly as-is.
 
 ## Running The PSG via PSG.py:
-The PSG is a cool tool, but there are many steps which need to be completed before you put things in as inputs to the PSG, and there's a lot of work to do before you get reasonable results back, which is what this repository is for. In order to run the PSG, run the line
-```foo = PSG.PSG(*args)
-foo.calculate(*args) # This line creates things like a planet_data dictionary, a star_data dictionary
-# an astropy table of the atmosphere called atmosphere, and much more
-foo.write() # This line creates a psginput.txt file which will be sent to the PSG
-foo.send(*args) # This sends the file to the PSG using the curl API and deletes unwanted files
-foo.plot_setup() # This prepares you for running the plot commands by unpacking the PSG output files
+The PSG is a cool tool, but there are many steps which need to be completed before you put things in as inputs to the PSG, and there's a lot of work to do before you get reasonable results back, which is what this repository is for. In order to run the PSG, run the line.
+
+```
+planet = PSG.PSG(planet_name, file_name, is_earth, astmosphere_ceiling, n_uplayers, phase)
+# Initializes the PSG
+planet.calculate(skprows)  # Computes necessary values
+planet.write(scope, exposure_time, exposure_count, rad_units)
+# Writes a file to be sent
+planet.send(run)  # Sends the file to the PSG
+planet.plot_setup()  # Prepares for plotting
+planet.<plot_function>  # Each creates a plot and writes it to a file
 ```
 
 ## Running  PSG via jupyter notebook
-In jupyter notebook, you have some added flexibility to interact with the results. Fortunately, PSG.py has been optimized for this purpose. In order to interact with the data, some python dictionaries are created to store meaningful values. `planet_data` and `star_data`. There is also an astropy table of the atmosphere profile called `atmosphere`. Those are the most useful values, but there is also `n_layers`, `n_downlayers`, and `n_uplayers`. Each of which describes the layers in each section of the atmosphere. The downlayers are given by the input files, the uplayers are isothermal layers in the upper atmosphere
+In jupyter notebook, you have some added flexibility to interact with the results. Fortunately, PSG.py has been optimized for this purpose. In order to interact with the data, some python dictionaries are created to store meaningful values. `planet_data` and `star_data`. There is also an astropy table of the atmosphere profile called `atmosphere`. Those are the most useful values, but there is also `n_layers`, `n_downlayers`, and `n_uplayers`. Each of which describes the layers in each section of the atmosphere. The downlayers are given by the input files, the uplayers are isothermal layers in the upper atmosphere. A very useful technique is to run calculate, modify something about the atmosphere (like remove water), then run write, which will use the modified values.
+
+After running plot_setup(), you will be able to access any results obtained by the PSG, so variables like Wavelengths, Transit, Stellar, Planet, and Noise will all be accessible. Attributes without a label in front of them came from the radiance file PSG returns, which includes all observables. Attributes with a t in front came from the transmittance file, which described the behavior of each particle in the atmosphere. Attributes with an n in front of it came from the noise file, which breaks down the noise into components.
 ## Standard Transits
 This is the main pipeline with nothing fancy added to it, focusing on the 1barN2 0.4barCO2 model using MIRI-MRS. It produces the most reliable results.
 
