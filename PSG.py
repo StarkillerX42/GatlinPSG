@@ -9,7 +9,7 @@ __version__ = 3.6
 scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS", "NIRSpec-1000",
           "NIRSpec-2700", "NIRSpec-Prism", "Hubble", "Spitzer-Short-High",
           "ALMA_Band_7"]
-rad_unit_types = ["rel", "rkm", "Wsrm2um"]
+rad_unit_types = ["rel", "rkm", "Wsrm2um", "raw"]
 file_types = ["trn", "lyr", "rad", "noi", "log", "atm", "err"]
 
 
@@ -139,6 +139,7 @@ class PSG(object):
         self.nDetector = None
         self.nTelescope = None
         self.nBackground = None
+        self.nReal = None
 
     def calculate(self, skprow: int=11):
 
@@ -188,16 +189,23 @@ class PSG(object):
              star_distance, star_magnitude,
              insolation) = line
         else:
-            print("    Planet not found")
-            exit()
+            print("    Planet not found. Inupts must be given manually.")
         if star_velocity == "":
             star_velocity = 0.
         if star_magnitude == "nan":
-            star_magnitude = 0.
+            star_magnitude = 10.
         if self.is_earth:
-            planet_name = "ExoEarth like " + planet_name
+            planet_name = "ExoEarth like " + self.planet
             planet_emass = 1.
             planet_erad = 1.
+            star_srad = 1.
+            sma = 1.
+            inclination = 90.
+            insolation = 1361.
+            star_velocity = 0.
+            star_temp = 5700
+            star_distance = 10.
+            star_magnitude = 10.
             transit_depth = str(float(planet_erad)
                                 / float(star_srad) * 0.009154)
         # Converts NASA"s values to proper units
@@ -216,6 +224,7 @@ class PSG(object):
         self.star_data["Temperature"] = float(star_temp)
         self.star_data["Distance"] = float(star_distance)
         self.star_data["Magnitude"] = float(star_magnitude)
+
         self.planet_data["DepthEff"] = (self.planet_data["Radius"]
                                         / self.star_data["Radius"]) ** 2
         self.planet_data["Gravity"] = (6.67e-11
@@ -267,48 +276,64 @@ class PSG(object):
                         self.planet_data["MWeightDry"] = float(c[3])
                     except IndexError:
                         print("    No dry molecular weight")
-                        exit()
-        self.planet_data["EffectiveTemp"] = (self.planet_data["Insolation"]
-                                             * (1 - self.planet_data["Albedo"])
-                                             / (4 * 5.67e-8)) ** 0.25
-        self.planet_data["ScaleHeight"] = (8.3144598
-                                           * self.planet_data[
-                                               "SurfaceTemperature"]
-                                           / (self.planet_data["MWeightDry"]
-                                              * self.planet_data["Gravity"]))
 
         a = np.loadtxt(self.file_name, skiprows=skprow, unpack=True)
         layers_profile = a[0] + 1
         self.n_downlayers = len(layers_profile)
-        heights_profile = np.flipud(a[1])  # m
-        pressure_profile = np.flipud(a[2] / 1000)  # bar
-        temperature_profile = np.flipud(a[3])  # K
-        n2_profile = np.flipud(a[4])  # Kg/Kg
-        co2_profile = np.flipud(a[5])  # Kg/Kg
-        h2o_profile = np.flipud(a[6])  # Kg/Kg
-        liquid_cloud_profile = np.flipud(a[7])  # Kg/Kg
-        ice_cloud_profile = np.flipud(a[8])  # Kg/Kg
-        liquid_cloud_size_profile = np.flipud(a[9])  # um
-        ice_cloud_size_profile = np.flipud(a[10])  # um
-        self.atmosphere = astropy.table.Table([layers_profile,
-                                               heights_profile,
-                                               pressure_profile,
-                                               temperature_profile,
-                                               n2_profile,
-                                               co2_profile,
-                                               h2o_profile,
-                                               liquid_cloud_profile,
-                                               ice_cloud_profile,
-                                               liquid_cloud_size_profile,
-                                               ice_cloud_size_profile],
-                                              names=("Layer", "Height",
-                                                     "Pressure",
-                                                     "Temperature",
-                                                     "N2", "CO2", "H2O",
-                                                     "LiquidCloud",
-                                                     "IceCloud",
-                                                     "LiquidCloudSize",
-                                                     "IceCloudSize"))
+        if len(a) == 11:
+            heights_profile = np.flipud(a[1])  # m
+            pressure_profile = np.flipud(a[2] / 1000)  # bar
+            temperature_profile = np.flipud(a[3])  # K
+            n2_profile = np.flipud(a[4])  # Kg/Kg
+            co2_profile = np.flipud(a[5])  # Kg/Kg
+            h2o_profile = np.flipud(a[6])  # Kg/Kg
+            liquid_cloud_profile = np.flipud(a[7])  # Kg/Kg
+            ice_cloud_profile = np.flipud(a[8])  # Kg/Kg
+            liquid_cloud_size_profile = np.flipud(a[9])  # um
+            ice_cloud_size_profile = np.flipud(a[10])  # um
+            self.atmosphere = astropy.table.Table([layers_profile,
+                                                   heights_profile,
+                                                   pressure_profile,
+                                                   temperature_profile,
+                                                   n2_profile,
+                                                   co2_profile,
+                                                   h2o_profile,
+                                                   liquid_cloud_profile,
+                                                   ice_cloud_profile,
+                                                   liquid_cloud_size_profile,
+                                                   ice_cloud_size_profile],
+                                                  names=["Layer", "Height",
+                                                         "Pressure",
+                                                         "Temperature",
+                                                         "N2", "CO2", "H2O",
+                                                         "LiquidCloud",
+                                                         "IceCloud",
+                                                         "LiquidCloudSize",
+                                                         "IceCloudSize"])
+        elif len(a) == 9:  # This is a different because clouds are g/m^2
+            pressure_profile = np.flipud(a[1] / 1000)
+            temperature_profile = np.flipud(a[2])
+            n2_profile = np.flipud(a[3])
+            h2o_profile = np.flipud(a[4])
+            liquid_cloud_profile = np.flipud(a[5])
+            ice_cloud_profile = np.flipud(a[6])
+            liquid_cloud_size_profile = np.flipud(a[7])
+            ice_cloud_size_profile = np.flipud(a[8])
+            self.atmosphere = astropy.table.Table([layers_profile,
+                                                   pressure_profile,
+                                                   temperature_profile,
+                                                   n2_profile,
+                                                   h2o_profile,
+                                                   liquid_cloud_profile,
+                                                   ice_cloud_profile,
+                                                   liquid_cloud_size_profile,
+                                                   ice_cloud_size_profile],
+                                                  names=["Layer", "Pressure",
+                                                         "Temperature", "N2",
+                                                         "H2O", "LiquidCloud",
+                                                         "IceCloud",
+                                                         "LiquidCloudSize",
+                                                         "IceCloudSize"])
 
         h0 = 0.0
         p0 = self.planet_data["SurfacePressure"]
@@ -349,7 +374,6 @@ class PSG(object):
             mtot += mlyr * nlyr
             nlyrs.append(nlyr)
         self.atmosphere["Height"] /= 1e3
-
         # Compute representative quantities
         self.planet_data["MWeightTotal"] = mtot / ntot
         # This needs to exist in case aerosols are absent,
@@ -364,6 +388,14 @@ class PSG(object):
         self.planet_data["MeanIceCloudSize"] = np.average(
             self.atmosphere["IceCloudSize"],
             weights=self.atmosphere["IceCloudSize"])
+        self.planet_data["EffectiveTemp"] = (self.planet_data["Insolation"]
+                                             * (1 - self.planet_data["Albedo"])
+                                             / (4 * 5.67e-8)) ** 0.25
+        self.planet_data["ScaleHeight"] = (8.3144598
+                                           * self.planet_data[
+                                               "SurfaceTemperature"]
+                                           / (self.planet_data["MWeightTotal"]
+                                              * self.planet_data["Gravity"]))
 
         # Adding layers
         if self.atmosphere_ceiling != 0:
@@ -390,8 +422,24 @@ class PSG(object):
                 i += 1
             self.n_layers = self.n_downlayers + self.n_uplayers
 
+    def zero_atmosphere(self):
+        """This is an optional method that zeros out the atmosphere for
+        background calculations"""
+        self.atmosphere["Pressure"] *= 0
+        self.atmosphere["Temperature"] *= 0
+        self.atmosphere["N2"] *= 0
+        self.atmosphere["CO2"] *= 0
+        self.atmosphere["H2O"] *= 0
+        self.atmosphere["LiquidCloud"] *= 0
+        self.atmosphere["IceCloud"] *= 0
+        self.planet_data["MWeightTotal"] = 0
+        self.planet_data["IceCloudAbundance"] = 0
+        self.planet_data["LiquidCloudAbundance"] = 0
+        self.planet_data["SurfacePressure"] = 0
+
     def write(self, scope: str="MIRI-MRS", exposure_time=16,
               exposure_count: int=110, rad_units: str="rel"):
+        """Writes a PSG input file. See parent class for details."""
         self.scope = scope
         self.exposure_time = exposure_time
         self.exposure_count = exposure_count
@@ -399,6 +447,9 @@ class PSG(object):
         self._psginput_name = ""
         if "aqua" in self.file_name:
             self._psginput_name += self.file_name.split("_aqua")[0]
+            end = "_psginput.txt"
+        elif "t" in self.file_name and "s" in self.file_name and "p" in self.file_name:
+            self._psginput_name += self.file_name.split(".txt")[0]
             end = "_psginput.txt"
         else:
             print("    Assuming the file is a dry file")
@@ -963,18 +1014,18 @@ class PSG(object):
             results.write("<ATMOSPHERE-LMAX>0\n")
             results.write("<ATMOSPHERE-ASIZE>{},{}\n".format(
                 self.planet_data["MeanIceCloudSize"],
-                self.planet_data["MeanLiquidCloudSize"]/2))
+                self.planet_data["MeanLiquidCloudSize"]))
             results.write(
                 "<ATMOSPHERE-LAYERS-MOLECULES>Altitude,N2,CO2,H2O,WaterIce"
                 ",Cloud\n")
             results.write("<ATMOSPHERE-LAYERS>{}\n".format(self.n_layers))
             for i, lvl in enumerate(self.atmosphere):
                 results.write(
-                    "<ATMOSPHERE-LAYER-{:.0f}>{:.3E},{:.3E},{:.3E},{:.3E},"
-                    "{:.3E},{:.3E},{:.3E},{:.3E}\n".format(
+                    "<ATMOSPHERE-LAYER-{:.0f}>{:.3E},{:.3E},{:.3E},"
+                    "{:.3E},{:.3E},{:.3E},{:.3E},{:.3E}\n".format(
                         lvl["Layer"], lvl["Pressure"], lvl["Temperature"],
-                        lvl["Height"], lvl["Height"], lvl["CO2"], lvl["H2O"],
-                        lvl["IceCloud"], lvl["LiquidCloud"]))
+                        lvl["Height"], lvl["N2"], lvl["CO2"], lvl["H2O"],
+                        lvl["LiquidCloud"], lvl["IceCloud"]))
 
             print("    Successfully added {} layers to the atmosphere".format(
                 self.n_uplayers))
@@ -1034,6 +1085,10 @@ class PSG(object):
                     if "results_" in line:
                         filetail = line.split("_")[1].split("\n")[0]
         print("    {} files created".format(sections))
+        if filestem + "log.txt" in self.returned_files:
+            print("    PSG returned an error or warning:")
+            with open(filestem + "log.txt", "r") as log:
+                print(log.readline())
 
         for i, fil in enumerate(self.returned_files):
             if fil.split("_")[-1].split(".")[0] not in keep_files:
@@ -1049,8 +1104,9 @@ class PSG(object):
         self._title_stem = "{} {} {}".format(
             self.planet, name_parts[1], name_parts[2])
 
-        radfil = np.loadtxt(rad_file, unpack=True, skiprows=16)
+        radfil = np.loadtxt(rad_file, unpack=True)
         self.Wavelengths = radfil[0]
+        print(len(self.Wavelengths))
         self.Total = radfil[1]
         self.Noise = radfil[2]
         self.Stellar = radfil[3]
@@ -1066,7 +1122,7 @@ class PSG(object):
         self._plot_range = (self.Wavelengths.min(), self.Wavelengths.max())
 
         trnfil = np.loadtxt(self._file_stem + "_psgoutput_trn.txt",
-                            unpack=True, skiprows=18)
+                            unpack=True)
         self.tTotalSpec = trnfil[1]
         self.tN2Spec = trnfil[2]
         self.tCO2Spec = trnfil[3]
@@ -1079,12 +1135,13 @@ class PSG(object):
             self.tCIASpec = np.linspace(1, 1, len(self.tWavelengthSpec))
 
         noi_fil = np.loadtxt(self._file_stem + "_psgoutput_noi.txt",
-                             unpack=True, skiprows=9)
+                             unpack=True)
         self.nTotal = noi_fil[1]
         self.nSource = noi_fil[2]
         self.nDetector = noi_fil[3]
         self.nTelescope = noi_fil[4]
         self.nBackground = noi_fil[5]
+        self.nReal = np.random.normal(0, self.nTotal, len(self.nTotal))
 
         print("Ready to Make Plots")
 
