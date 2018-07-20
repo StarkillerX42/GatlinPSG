@@ -1,24 +1,34 @@
 import os
 import time
-import astropy.table
+from astropy.table import Table
+import astropy.units as u
+from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
+import pandexo.engine.justdoit as jdi
 
 __author__ = "Dylan_Gatlin"
 __version__ = 3.6
-scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS", "NIRSpec-1000",
-          "NIRSpec-2700", "NIRSpec-Prism", "Hubble", "Spitzer-Short-High",
-          "ALMA_Band_7"]
-rad_unit_types = ["rel", "rkm", "Wsrm2um", "raw"]
+psg_scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS",
+              "NIRSpec-1000", "NIRSpec-2700", "NIRSpec-Prism", "Hubble",
+              "Spitzer-Short-High", "ALMA_Band_7"]
+pandexo_scopes = ['WFC3 G141', 'MIRI LRS', 'NIRISS SOSS', 'NIRSpec G140M',
+                  'NIRSpec G140H', 'NIRSpec G235M', 'NIRSpec G235H',
+                  'NIRSpec G395M', 'NIRSpec G395H', 'NIRSpec Prism',
+                  'NIRCam F322W2', 'NIRCam F444W']
+rad_unit_types = ["rel", "rkm", "Wsrm2um", "raw", "Jy"]
 file_types = ["trn", "lyr", "rad", "noi", "log", "atm", "err"]
 
 
+# noinspection PyShadowingNames
 class PSG(object):
     """This class is meant to help interface between NASA's PSG and climate
     models. The goal is to create a versatile PSG object which can be
     interacted with via jupyter notebooks. The proper way to run the PSG is:
 
-    planet = PSG.PSG(planet_name, file_name, is_earth, astmosphere_ceiling,
+    planet = PSG.PSG(planet_name, cdf_file, is_earth, astmosphere_ceiling,
                      n_uplayers, phase)
     planet.calculate(skprows)
     planet.write(scope, exposure_time, exposure_count, rad_units)
@@ -29,10 +39,11 @@ class PSG(object):
     Required Files:
 
         In the folder you"re running this, one file must be accessible.
-        file_name, a text file following Eric Wolf's formatting file_name must
-        be the terminator profile ending in _terminator.txt or another similar
-        formatted file. If the observation phase is different than 180, the
-        corresponding atmosphere profile must be given.
+        cdf_file, a text file following Eric Wolf's formatting
+        cdf_file must be the terminator profile ending in
+        _terminator.txt or another similar formatted file. If the observation
+        phase is different than 180, the corresponding atmosphere profile
+        must be given.
 
     PSG Init Arguments:
 
@@ -40,18 +51,12 @@ class PSG(object):
         For a list of known planets, run this function with a dummy planet name
         and read through exoplanets.csv, which should appear in your directory.
 
-        file_name: (str) The name of the file which you would like to read in,
-        described above.
+        cdf_file: (str) The name of the file which you would like to
+        read in, described above.
 
         is_earth: (bool)Whether or not this planet is a fake exoplanet with
         the same mass and radius as Earth If is_earth is True, the planet
         will be imagined as if it was around the star of the variable "planet"
-
-        atmosphere_ceiling: (float)The pressure where the atmosphere ends
-        The PSG will only produce useful results if there are layers at
-        extremely low pressure_profile. If the atmosphere profile isn't high
-        enough, imaginary upper layers can be added. Default is 0., but 1e-6
-        is recommended
 
         n_uplayers: (int) The number of isothermal layers between the top given
         layer and the top of the atmosphere
@@ -63,10 +68,16 @@ class PSG(object):
         skprow: The argument skiprows from np.loadtxt, telling you how many
         rows to skip from the atmopshere profile file.
 
+        atmosphere_ceiling: (float)The pressure where the atmosphere ends
+        The PSG will only produce useful results if there are layers at
+        extremely low pressure_profile. If the atmosphere profile isn't high
+        enough, imaginary upper layers can be added. Default is 0., but 1e-6
+        is recommended
+
     PSG.write Arguments:
 
         scope: The scope used in the observation. For a list of possible inputs
-        look at PSG.scopes
+        look at PSG.psg_scopes
 
         exposure time: The length of each exposure
 
@@ -86,24 +97,28 @@ class PSG(object):
     PSG.plot_setup Arguments
 
         None
+
+    PSG.pandexo Arguments
+
+        scope: Different from the scope in PSG.write, this refers to the same
+        thing, but it must be formatted according to pandexo. See
+        PSG.pandexo_scopes for a list of options.
     """
 
-    def __init__(self, planet_name: str, file_name: str, is_earth: bool=False,
-                 atmosphere_ceiling=0, n_uplayers: int=0, phase=180):
+    def __init__(self, planet_name: str):
         super(PSG, self).__init__()
-        self.planet = planet_name
-        self.file_name = file_name
-        self.is_earth = is_earth
-        self.atmosphere_ceiling = atmosphere_ceiling
-        self.n_uplayers = n_uplayers
-        self.phase = phase
 
+        self.planet_name = planet_name
         # Planet Variables
+        self.is_earth = None
         self.planet_data = {}
         self.star_data = {}
         self.atmosphere = None
         self.n_downlayers = None
         self.n_layers = None
+        self.phase = None
+        self.cdf_file = None
+        self.profile_file = None
 
         # PSG Variables
         self.scope = None
@@ -141,16 +156,9 @@ class PSG(object):
         self.nBackground = None
         self.nReal = None
 
-    def calculate(self, skprow: int=11):
+    def fetch_archive(self, is_earth: bool = False):
+        self.is_earth = is_earth
 
-        """See PSG parent class docstring for details.
-
-        Arguments:
-            skprow: int, The number of lines to skip in np.loadtxt of the
-            input file. This is the same argument as skiprows in np.loadtxt,
-            but the name is changed to clarify arguments."""
-        print("Calculating Planet Data")
-        # See if we need a new/updated exoplanet"s list
         if not os.path.isfile("exoplanets.csv"):
             need_file = True
         else:
@@ -161,13 +169,15 @@ class PSG(object):
             else:
                 need_file = False
         if need_file:
-            print("Retrieving planet variables from NASA's Exoplanet Archive")
+            print("    Retrieving planet variables from NASA's Exoplanet "
+                  "Archive")
             import requests
             r = requests.get("https://exoplanetarchive.ipac.caltech.edu/cgi"
                              "-bin/nstedAPI/nph-nstedAPI?table=exoplanets"
                              "&select=pl_name,pl_masse,pl_rade,pl_orbsmax,"
                              "pl_orbincl,pl_trandep,st_teff,st_rad,st_radv,"
-                             "st_dist,st_optmag,pl_insol&format=csv")
+                             "st_dist,st_optmag,pl_insol,st_metfe,st_logg"
+                             "&format=csv")
             lines = r.text[2:].splitlines()
             with open("exoplanets.csv", "w") as fil:
                 for line in lines:
@@ -178,24 +188,26 @@ class PSG(object):
          sma, inclination, transit_depth,
          star_temp, star_srad, star_velocity,
          star_distance, star_magnitude,
-         insolation) = [None] * 12
+         insolation, metallicity, star_gravity) = [None] * 14
         exoplanets = np.loadtxt("exoplanets.csv", delimiter=",", skiprows=1,
-                                dtype=np.str,  comments="'")
-        if sum(exoplanets[:, 0] == self.planet) == 1:
-            line = exoplanets[exoplanets[:, 0] == self.planet][0]
+                                dtype=np.str, comments="'")
+        if sum(exoplanets[:, 0] == self.planet_name) == 1:
+            line = exoplanets[exoplanets[:, 0] == self.planet_name][0]
             (planet_name, planet_emass, planet_erad,
              sma, inclination, transit_depth,
              star_temp, star_srad, star_velocity,
              star_distance, star_magnitude,
-             insolation) = line
+             insolation, metallicity, star_gravity) = line
         else:
             print("    Planet not found. Inupts must be given manually.")
         if star_velocity == "":
             star_velocity = 0.
         if star_magnitude == "nan":
             star_magnitude = 10.
+        if star_gravity == "":
+            star_gravity = 4.
         if self.is_earth:
-            planet_name = "ExoEarth like " + self.planet
+            planet_name = "ExoEarth like " + self.planet_name
             planet_emass = 1.
             planet_erad = 1.
             star_srad = 1.
@@ -206,6 +218,8 @@ class PSG(object):
             star_temp = 5700
             star_distance = 10.
             star_magnitude = 10.
+            metallicity = 0.0122
+            star_gravity = 4.4
             transit_depth = str(float(planet_erad)
                                 / float(star_srad) * 0.009154)
         # Converts NASA"s values to proper units
@@ -224,12 +238,15 @@ class PSG(object):
         self.star_data["Temperature"] = float(star_temp)
         self.star_data["Distance"] = float(star_distance)
         self.star_data["Magnitude"] = float(star_magnitude)
+        self.star_data["Metallicity"] = np.log10(float(metallicity))
+        self.star_data["Gravity"] = float(star_gravity)
 
         self.planet_data["DepthEff"] = (self.planet_data["Radius"]
                                         / self.star_data["Radius"]) ** 2
         self.planet_data["Gravity"] = (6.67e-11
                                        * self.planet_data["Mass"]
-                                       / (self.planet_data["Radius"]*1000) ** 2)
+                                       / (self.planet_data["Radius"]
+                                          * 1000) ** 2)
         if 2500 <= self.star_data["Temperature"] <= 3800:
             self.star_data["Type"] = "M"
         elif 3800 <= self.star_data["Temperature"] <= 5240:
@@ -242,185 +259,274 @@ class PSG(object):
             print("    star temp: {}".format(self.star_data["Temperature"]))
             self.star_data["Type"] = input("    Star type not recognized,"
                                            " please specify star type:")
+        print("    Exoplanet Archive fetched. planet_data and star_data filled")
+
+    def from_cdf(self, cdf_file: str, phase=180):
+        """This function imports an atmosphere profile from a netcdf file. If
+        a netcdf file isn't available, simply specify the PSG attribute
+        self.cdf_file before running calculate."""
+
+        self.phase = phase
+        self.cdf_file = cdf_file
+        print("    Accessing netCDF contents")
+
+        # noinspection PyShadowingNames
+        def hybrid2pressure(cdf):
+            """This function takes a netcdf4 object as input and returns the
+            p_pro and ilev_pressures"""
+            hyam = cdf["hyam"][:]
+            hybm = cdf["hybm"][:]
+            p_s = cdf["PS"][0]
+            p0 = cdf["P0"][0]
+            ip = np.zeros(
+                (len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])))
+            # noinspection PyShadowingNames
+            for i, lat in enumerate(cdf["lat"][:]):
+                for j, lon in enumerate(cdf["lon"][:]):
+                    ip[i, j, :] = hyam * p0 + hybm * p_s[i, j]
+            ip = ip[:]
+            for i, lon in enumerate(cdf["lat"][:]):
+                for j, lat in enumerate(cdf["lon"][:]):
+                    ip[i, j, :] = hyam * p0 + hybm * p_s[i, j]
+            return ip, ip
+
+        def hybrid2height(cdf, g, molar_mass):
+            """Converts netcdf hybrid coefficients to heights in m"""
+            ps = cdf["PS"][0]
+            p0 = cdf["P0"][0]
+            hyai = cdf["hyai"][:]
+            hybi = cdf["hybi"][:]
+            t = cdf["T"][0]
+            hyam = cdf["hyam"][:]
+            hybm = cdf["hybm"][:]
+            r = 8.314 / molar_mass
+            z = np.zeros((len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])))
+            iz = z[:]
+            for i, lat in enumerate(cdf["lat"][:]):
+                for j, lon in enumerate(cdf["lon"]):
+                    for k in iter(range(len(cdf["lev"]) - 1, 0, -1)):
+                        p1 = hyai[k] * p0 + hybi[k] * ps[i, j]
+                        p2 = hyai[k - 1] * p0 + hybi[k - 1] * ps[i, j]
+                        delta_z = r * t[k - 1, i, j] / g * np.log(p1 / p2)
+                        iz[i, j, k - 1] = iz[i, j, k] + delta_z
+                        p_prime = hyam[k - 1] * p0 + hybm[k - 1] * ps[i, j]
+                        z_scale = -r * t[k - 1, i, j] / g * np.log(p_prime / p1)
+                        z[i, j, k - 1] = iz[i, j, k] + z_scale
+            return z, iz
+
+        netcdf = Dataset(cdf_file)
+        if 95 < phase <= 265:
+            left_ang = phase - 90.
+            right_ang = phase + 90.
+        elif phase <= 95:
+            left_ang = 270 + phase
+            right_ang = phase + 90.
+        elif phase > 265:
+            left_ang = phase - 90.
+            right_ang = 270. - phase
+        else:
+            left_ang = 0.
+            right_ang = 0.
+        left_bool = ((left_ang - 5 <= netcdf["lon"][:])
+                     & (netcdf["lon"][:] <= left_ang + 5))
+        right_bool = ((right_ang - 5 <= netcdf["lon"][:])
+                      & (netcdf["lon"][:] <= right_ang + 5))
+        profile_bool = left_bool ^ right_bool
+        area_weight = np.cos(np.deg2rad(netcdf["lat"][:]))
+        t_pro = np.average(np.average(netcdf["T"][0, :, :, profile_bool],
+                                      axis=2), axis=1, weights=area_weight)
+        q_pro = np.average(np.average(netcdf["Q"][0, :, :, profile_bool],
+                                      axis=2), axis=1, weights=area_weight)
+        ch4_vmr = netcdf["ch4vmr"][0]
+        co2_vmr = netcdf["co2vmr"][0]
+        n2_vmr = 1 - co2_vmr - ch4_vmr
+        cldliq = np.average(np.average(netcdf["CLDLIQ"][0, :, :, profile_bool],
+                                       axis=2), axis=1, weights=area_weight)
+        cldice = np.average(np.average(netcdf["CLDICE"][0, :, :, profile_bool],
+                                       axis=2), axis=1, weights=area_weight)
+        reffliq = np.average(np.average(netcdf["REL"][0, :, :, profile_bool],
+                                        axis=2), axis=1, weights=area_weight)
+        reffice = np.average(np.average(netcdf["REI"][0, :, :, profile_bool],
+                                        axis=2), axis=1, weights=area_weight)
+        p_surf = np.average(np.average(netcdf["PS"][0, :, profile_bool],
+                                       axis=1), axis=0, weights=area_weight)
+        t_surf = np.average(np.average(netcdf["TS"][0, :, profile_bool],
+                                       axis=1), axis=0, weights=area_weight)
+        albedos = netcdf["FUS"][0] / netcdf["FDS"][0]
+        albedo = np.average(np.average(np.ma.masked_array(albedos[-1],
+                                                          np.isnan(
+                                                              albedos[-1])),
+                                       axis=0, weights=area_weight))
+
+        if "barN2" in cdf_file:
+            amounts = [n2_vmr, co2_vmr, ch4_vmr]
+            m_weight_dry = np.average([0.0280, 0.0440, 0.01604],
+                                      weights=amounts)
+        else:
+            raise Exception("Non-N2 inclusive profiles not supported yet")
+        heights, iheights = hybrid2height(netcdf, self.planet_data["Gravity"],
+                                          m_weight_dry)
+        pressures, ipressures = hybrid2pressure(netcdf)
+        p_pro = np.average(np.average(pressures[:, profile_bool], axis=0,
+                                      weights=area_weight), axis=0) / 100
+        h_pro = np.average(np.average(heights[:, profile_bool], axis=0,
+                                      weights=area_weight), axis=0)
+        q_mmr = q_pro / (1. - q_pro)
+        q_vmr_dry = q_mmr * 28.0059 / 18.01528
+        q_vmr_wet = q_vmr_dry / (1 + q_vmr_dry)
+        co2_vmr_wet = co2_vmr / (1 + q_vmr_wet)
+        ch4_vmr_wet = ch4_vmr / (1 + q_vmr_wet)
+        n2_vmr_wet = 1.0 - co2_vmr_wet - ch4_vmr_wet - q_vmr_wet
+        cdf_atmosphere = Table([h_pro, p_pro, t_pro, n2_vmr_wet,
+                                co2_vmr_wet, ch4_vmr_wet, q_vmr_wet, cldliq,
+                                cldice, reffliq, reffice],
+                               names=["Heights", "Pressures", "Temps", "N2",
+                                      "CO2", "CH4", "H2O", "LiquidCloud",
+                                      "IceCloud", "LiquidCloudSize",
+                                      "IceCloudSize"])
+        self.profile_file = cdf_file.split(".cam")[0] + "_terminator.txt"
+        with open(self.profile_file, "w") as out:
+            out.write("# Simulation:  {}\n".format(
+                cdf_file.split(".cam")[0]))
+            out.write("# {}, {:.2f}% N2, {:.2f}% CO2, {:.2f}% CH4\n".format(
+                self.planet_name, n2_vmr, co2_vmr, ch4_vmr))
+            out.write("# Mean Vertical Profile\n")
+            out.write("# Mass mixing ratios (kg/kg) relative to "
+                      "the moist air mass (i.e dry air mass + water vapor "
+                      "mass)\n")
+            out.write("# Pressure are total pressure (i.e P_dry + "
+                      "P_h2o)\n")
+            out.write("# Surf Press (mb)    Surf Temp (K)        Surf Albedo   "
+                      "       Dry Molar Weight     Phase\n")
+            out.write("#{:<20.7f}#{:<20.7f}#{:<20.7f}#{:<20.7f}#{:<20.7f}\n".
+                      format(p_surf, t_surf, albedo, m_weight_dry, phase))
+            out.write("{:4.20s}{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}"
+                      "{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}"
+                      "{:>20.20s}{:>20.20s}\n".format("# Lev", "Height (m)",
+                                                      "Pressure (mb)",
+                                                      "Temperature (K)",
+                                                      "N2 (vmr)", "CO2 (vmr)",
+                                                      "CH4 (vmr)", "H2O (vmr)",
+                                                      "Liquid Clouds",
+                                                      "Ice Clouds",
+                                                      "Liquid Size",
+                                                      "Ice Size"))
+            for i, lvl in enumerate(cdf_atmosphere):
+                out.write(
+                    "{:5.0f}{:20.7f}{:20.7f}{:20.7f}{:20.7f}{:20.7E}{:20.7E}"
+                    "{:20.7E}{:20.7E}{:20.7E}{:20.3f}{:20.3f}\n".format(
+                        i, lvl["Heights"], lvl["Pressures"],
+                        lvl["Temps"], lvl["N2"], lvl["CO2"], lvl["CH4"],
+                        lvl["H2O"], lvl["LiquidCloud"], lvl["IceCloud"],
+                        lvl["LiquidCloudSize"], lvl["IceCloudSize"]))
+        print(f"    Output file written to {self.profile_file}")
+
+    def calculate(self, atmosphere_ceiling=0, n_uplayers: int = 0):
+
+        """See PSG parent class docstring for details"""
+
         # Relevant if there are phase curves, this method isn't very good
         # unless you're using the terminator
-        if "lon" not in self.file_name:
+        if "lon" not in self.profile_file:
             if 178 < self.phase <= 182:
-                self.file_name = self.file_name
+                self.profile_file = self.profile_file
                 print("    Using terminator profile")
             if 135 < self.phase <= 178 or 182 < self.phase <= 225:
-                self.file_name = self.file_name.split("_term")[0] \
-                                 + "_antistellar.txt "
+                self.profile_file = self.profile_file.split("_term")[0] \
+                                    + "_antistellar.txt "
                 print("    Using antistellar profile")
             if 45 < self.phase <= 135 or 225 < self.phase <= 315:
-                self.file_name = self.file_name.split("_term")[0] \
-                                 + "_globalmean.txt"
+                self.profile_file = self.profile_file.split("_term")[0] \
+                                    + "_globalmean.txt"
                 print("    Using globalmean profile")
             if 0 <= self.phase <= 45 or 315 < self.phase <= 360:
-                self.file_name = self.file_name.split("_term")[0] \
-                                 + "_substellar.txt"
+                self.profile_file = self.profile_file.split("_term")[0] \
+                                    + "_substellar.txt"
                 print("    Using substellar profile")
-        elif "lon" in self.file_name:
+        elif "lon" in self.profile_file:
             print("    Using provided file, phase is {}".format(self.phase))
 
         # GCM Inputs
-        with open(self.file_name) as fp:
-            for i, line in enumerate(fp):
-                if i == skprow - 2:
-                    b = line
-                    c = b.split()
-                    self.planet_data["SurfacePressure"] = float(c[0]) / 1000.0
-                    self.planet_data["SurfaceTemperature"] = float(c[1])
-                    self.planet_data["Albedo"] = float(c[2])
-                    try:
-                        self.planet_data["MWeightDry"] = float(c[3])
-                    except IndexError:
-                        print("    No dry molecular weight")
+        with open(self.profile_file, "r") as fp:
+            lines = fp.readlines()
+            line = lines[6]
+            c = line.split("#")
+            self.planet_data["SurfacePressure"] = float(c[1]) / 1000.0
+            self.planet_data["SurfaceTemperature"] = float(c[2])
+            self.planet_data["Albedo"] = float(c[3])
+            self.planet_data["MWeightDry"] = float(c[4])
+            self.planet_data["Phase"] = float(c[5])
 
-        a = np.loadtxt(self.file_name, skiprows=skprow, unpack=True)
-        layers_profile = a[0] + 1
+        profile = np.loadtxt(self.profile_file, skiprows=8, unpack=True)
+        layers_profile = profile[0] + 1
         self.n_downlayers = len(layers_profile)
-        if len(a) == 11:
-            heights_profile = np.flipud(a[1])  # m
-            pressure_profile = np.flipud(a[2] / 1000)  # bar
-            temperature_profile = np.flipud(a[3])  # K
-            n2_profile = np.flipud(a[4])  # Kg/Kg
-            co2_profile = np.flipud(a[5])  # Kg/Kg
-            h2o_profile = np.flipud(a[6])  # Kg/Kg
-            liquid_cloud_profile = np.flipud(a[7])  # Kg/Kg
-            ice_cloud_profile = np.flipud(a[8])  # Kg/Kg
-            liquid_cloud_size_profile = np.flipud(a[9])  # um
-            ice_cloud_size_profile = np.flipud(a[10])  # um
-            self.atmosphere = astropy.table.Table([layers_profile,
-                                                   heights_profile,
-                                                   pressure_profile,
-                                                   temperature_profile,
-                                                   n2_profile,
-                                                   co2_profile,
-                                                   h2o_profile,
-                                                   liquid_cloud_profile,
-                                                   ice_cloud_profile,
-                                                   liquid_cloud_size_profile,
-                                                   ice_cloud_size_profile],
-                                                  names=["Layer", "Height",
-                                                         "Pressure",
-                                                         "Temperature",
-                                                         "N2", "CO2", "H2O",
-                                                         "LiquidCloud",
-                                                         "IceCloud",
-                                                         "LiquidCloudSize",
-                                                         "IceCloudSize"])
-        elif len(a) == 9:  # This is a different because clouds are g/m^2
-            pressure_profile = np.flipud(a[1] / 1000)
-            temperature_profile = np.flipud(a[2])
-            n2_profile = np.flipud(a[3])
-            h2o_profile = np.flipud(a[4])
-            liquid_cloud_profile = np.flipud(a[5])
-            ice_cloud_profile = np.flipud(a[6])
-            liquid_cloud_size_profile = np.flipud(a[7])
-            ice_cloud_size_profile = np.flipud(a[8])
-            self.atmosphere = astropy.table.Table([layers_profile,
-                                                   pressure_profile,
-                                                   temperature_profile,
-                                                   n2_profile,
-                                                   h2o_profile,
-                                                   liquid_cloud_profile,
-                                                   ice_cloud_profile,
-                                                   liquid_cloud_size_profile,
-                                                   ice_cloud_size_profile],
-                                                  names=["Layer", "Pressure",
-                                                         "Temperature", "N2",
-                                                         "H2O", "LiquidCloud",
-                                                         "IceCloud",
-                                                         "LiquidCloudSize",
-                                                         "IceCloudSize"])
-
-        h0 = 0.0
-        p0 = self.planet_data["SurfacePressure"]
-        t0 = self.planet_data["SurfaceTemperature"]
-        ntot = 0.0
-        mtot = 0.0
-        nlyrs = []
-        for i, lvl in enumerate(self.atmosphere):
-            # Height of the layer [m] is the height of the middle
-            # of the layer
-            dh = lvl["Height"] - h0
-            # Layer molecular density [mol/m3]
-            mol = 1e5 * (p0 + lvl["Pressure"]) / (
-                    8.3144598 * (t0 + lvl["Temperature"]))
-            nlyr = mol * dh  # Layer integrated density [mol/m2]
-            # Layer molecular weight [g/mol]
-            mlyr = (lvl["N2"] * 28.0134
-                    + lvl["CO2"] * 44.01
-                    + lvl["H2O"] * 18.01528
-                    + lvl["LiquidCloud"] * 18.01528
-                    + lvl["IceCloud"] * 18.01528)
-            # N2 abundance  [mol/mol]
-            self.atmosphere["N2"][i] = lvl["N2"] * (mlyr / 28.0134)
-            # CO2 abundance [mol/mol]
-            self.atmosphere["CO2"][i] = lvl["CO2"] * (mlyr / 44.01)
-            # H2O abundance [mol/mol]
-            self.atmosphere["H2O"][i] = lvl["H2O"] * (mlyr / 18.01528)
-            # Liq abundance [mol/mol]
-            self.atmosphere["LiquidCloud"][i] = (lvl["LiquidCloud"]
-                                                 * (mlyr / 18.01528))
-            # ice abundance [mol/mol]
-            self.atmosphere["IceCloud"][i] = (lvl["IceCloud"] * (
-                    mlyr / 18.01528))
-            h0 += dh
-            p0 = self.atmosphere["Pressure"][i]
-            t0 = self.atmosphere["Temperature"][i]
-            ntot += nlyr
-            mtot += mlyr * nlyr
-            nlyrs.append(nlyr)
+        heights_profile = np.flipud(profile[1])  # m
+        pressure_profile = np.flipud(profile[2] / 1000)  # bar
+        temperature_profile = np.flipud(profile[3])  # K
+        n2_profile = np.flipud(profile[4])  # vmr
+        co2_profile = np.flipud(profile[5])  # vmr
+        ch4_profile = np.flipud(profile[6])
+        h2o_profile = np.flipud(profile[7])  # vmr
+        liquid_cloud_profile = np.flipud(profile[8])  # vmr
+        ice_cloud_profile = np.flipud(profile[9])  # vmr
+        liquid_cloud_size_profile = np.flipud(profile[10])  # um
+        ice_cloud_size_profile = np.flipud(profile[11])  # um
+        self.atmosphere = Table([layers_profile, heights_profile,
+                                 pressure_profile, temperature_profile,
+                                 n2_profile, co2_profile, ch4_profile,
+                                 h2o_profile, liquid_cloud_profile,
+                                 ice_cloud_profile, liquid_cloud_size_profile,
+                                 ice_cloud_size_profile],
+                                names=["Layer", "Height", "Pressure",
+                                       "Temperature", "N2", "CO2", "CH4", "H2O",
+                                       "LiquidCloud", "IceCloud",
+                                       "LiquidCloudSize", "IceCloudSize"])
         self.atmosphere["Height"] /= 1e3
-        # Compute representative quantities
-        self.planet_data["MWeightTotal"] = mtot / ntot
-        # This needs to exist in case aerosols are absent,
-        # ATMOSPHERE-AABUN must be 0
+        print("    Atmosphere Profile File Read")
+        self.planet_data["MeanLiquidCloudSize"] = np.average(
+            self.atmosphere["LiquidCloudSize"],
+            weights=self.atmosphere["LiquidCloud"])
+        self.planet_data["MeanIceCloudSize"] = np.average(
+            self.atmosphere["IceCloudSize"],
+            weights=self.atmosphere["IceCloud"])
         self.planet_data["LiquidCloudAbundance"] = int(
             any(i > 0. for i in self.atmosphere["LiquidCloud"]))
         self.planet_data["IceCloudAbundance"] = int(
             any(i > 0. for i in self.atmosphere["IceCloud"]))
-        self.planet_data["MeanLiquidCloudSize"] = np.average(
-            self.atmosphere["LiquidCloudSize"],
-            weights=self.atmosphere["LiquidCloudSize"])
-        self.planet_data["MeanIceCloudSize"] = np.average(
-            self.atmosphere["IceCloudSize"],
-            weights=self.atmosphere["IceCloudSize"])
         self.planet_data["EffectiveTemp"] = (self.planet_data["Insolation"]
                                              * (1 - self.planet_data["Albedo"])
                                              / (4 * 5.67e-8)) ** 0.25
         self.planet_data["ScaleHeight"] = (8.3144598
                                            * self.planet_data[
                                                "SurfaceTemperature"]
-                                           / (self.planet_data["MWeightTotal"]
+                                           / (self.planet_data["MWeightDry"]
                                               * self.planet_data["Gravity"]))
 
         # Adding layers
-        if self.atmosphere_ceiling != 0:
+        if atmosphere_ceiling != 0:
             # This handles the imaginary upper atmosphere levels from
             # the top layer to the specified pressure atmosphere_ceiling
             # Defines upper atmosphere abundances
             ind = self.n_downlayers - 1
-            (lyr, upheight, uppres, uptemp, upN2, upCO2, upH2O, upLiq,
+            (lyr, upheight, uppres, uptemp, upN2, upCO2, upCH4, upH2O, upLiq,
              upIce, uplsize, upisize) = self.atmosphere[ind]
             # Planet radius at top of atmosphere
             # Hypsometric equation to find top of atmosphere
-            uptop = (-np.log(self.atmosphere_ceiling / uppres)
+            uptop = (-np.log(atmosphere_ceiling / uppres)
                      * self.planet_data["ScaleHeight"]
                      + upheight)
 
-            uplayers = np.geomspace(upheight+2, uptop, self.n_uplayers)
-            uppressure = uppres * np.exp(-(uplayers - upheight)
-                                         / self.planet_data["ScaleHeight"])
-            i = 1
-            for h, p in zip(uplayers, uppressure):
-                self.atmosphere.add_row([self.n_downlayers+i, h, p, uptemp,
-                                         upN2, upCO2, upH2O, upLiq, upIce,
-                                         uplsize, upisize])
-                i += 1
-            self.n_layers = self.n_downlayers + self.n_uplayers
+            up_heights = np.geomspace(upheight + 2, uptop, n_uplayers)
+            up_pressures = uppres * np.exp(-(up_heights - upheight)
+                                           / self.planet_data["ScaleHeight"])
+            up_indexes = range(n_uplayers)
+            for i, h, p in zip(up_indexes, up_heights, up_pressures):
+                self.atmosphere.add_row(
+                    [self.n_downlayers + i + 1, h, p, uptemp,
+                     upN2, upCO2, upCH4, upH2O, upLiq, upIce,
+                     uplsize, upisize])
+            self.n_layers = self.n_downlayers + n_uplayers
+            print("    Added {} layers to the atmosphere".format(n_uplayers))
 
     def zero_atmosphere(self):
         """This is an optional method that zeros out the atmosphere for
@@ -437,23 +543,25 @@ class PSG(object):
         self.planet_data["LiquidCloudAbundance"] = 0
         self.planet_data["SurfacePressure"] = 0
 
-    def write(self, scope: str="MIRI-MRS", exposure_time=16,
-              exposure_count: int=110, rad_units: str="rel"):
+    def write(self, scope: str = "MIRI-MRS", exposure_time=16,
+              exposure_count: int = 110, rad_units: str = "rel"):
         """Writes a PSG input file. See parent class for details."""
         self.scope = scope
         self.exposure_time = exposure_time
         self.exposure_count = exposure_count
         self.rad_units = rad_units
         self._psginput_name = ""
-        if "aqua" in self.file_name:
-            self._psginput_name += self.file_name.split("_aqua")[0]
+        if "aqua" in self.profile_file:
+            self._psginput_name += self.profile_file.split("_aqua")[0]
             end = "_psginput.txt"
-        elif "t" in self.file_name and "s" in self.file_name and "p" in self.file_name:
-            self._psginput_name += self.file_name.split(".txt")[0]
+        elif ("t" in self.profile_file
+              and "s" in self.profile_file
+              and "p" in self.profile_file):
+            self._psginput_name += self.profile_file.split(".txt")[0]
             end = "_psginput.txt"
         else:
             print("    Assuming the file is a dry file")
-            self._psginput_name = self.file_name.split("_dry")[0]
+            self._psginput_name = self.profile_file.split("_dry")[0]
             end = "_dry_psginput.txt"
         if self.phase != 180:
             self._psginput_name += "_" + str(self.phase)
@@ -990,7 +1098,7 @@ class PSG(object):
                           "Wolf)\n".format(self.planet_data["Name"]))
             results.write("<ATMOSPHERE-STRUCTURE>Equilibrium\n")
             results.write("<ATMOSPHERE-WEIGHT>{}\n".format(
-                self.planet_data["MWeightTotal"]))
+                self.planet_data["MWeightDry"]))
             results.write("<ATMOSPHERE-PRESSURE>{}\n".format(
                 self.planet_data["SurfacePressure"]))
             results.write("<ATMOSPHERE-PUNIT>bar\n")
@@ -1002,22 +1110,22 @@ class PSG(object):
             results.write("<ATMOSPHERE-ABUN>1,1,1\n")
             results.write("<ATMOSPHERE-UNIT>scl,scl,scl\n")
             results.write("<ATMOSPHERE-NAERO>2\n")
-            results.write("<ATMOSPHERE-AEROS>WaterIce,Cloud\n")
-            results.write(
-                "<ATMOSPHERE-ATYPE>CRISM_Wolff[reff=2.0um 0.31-99.57um],"
-                "White_GSFC[reff=1.0um 0.10-1000000.00um]\n")
+            results.write("<ATMOSPHERE-AEROS>Cloud, WaterIce\n")
+            results.write("White_GSFC[reff=1.0um 0.10-1000000.00um]"
+                          "<ATMOSPHERE-ATYPE>CRISM_Wolff[reff=2.0um "
+                          "0.31-99.57um]\n")
             results.write("<ATMOSPHERE-AABUN>{},{}\n".
-                          format(self.planet_data["IceCloudAbundance"],
-                                 self.planet_data["LiquidCloudAbundance"]))
+                          format(self.planet_data["LiquidCloudAbundance"],
+                                 self.planet_data["IceCloudAbundance"]))
             results.write("<ATMOSPHERE-AUNIT>scl,scl\n")
             results.write("<ATMOSPHERE-NMAX>0\n")
             results.write("<ATMOSPHERE-LMAX>0\n")
             results.write("<ATMOSPHERE-ASIZE>{},{}\n".format(
-                self.planet_data["MeanIceCloudSize"],
-                self.planet_data["MeanLiquidCloudSize"]))
+                self.planet_data["MeanLiquidCloudSize"],
+                self.planet_data["MeanIceCloudSize"]))
             results.write(
-                "<ATMOSPHERE-LAYERS-MOLECULES>Altitude,N2,CO2,H2O,WaterIce"
-                ",Cloud\n")
+                "<ATMOSPHERE-LAYERS-MOLECULES>Altitude,N2,CO2,H2O,Cloud"
+                ",WaterIce\n")
             results.write("<ATMOSPHERE-LAYERS>{}\n".format(self.n_layers))
             for i, lvl in enumerate(self.atmosphere):
                 results.write(
@@ -1027,8 +1135,6 @@ class PSG(object):
                         lvl["Height"], lvl["N2"], lvl["CO2"], lvl["H2O"],
                         lvl["LiquidCloud"], lvl["IceCloud"]))
 
-            print("    Successfully added {} layers to the atmosphere".format(
-                self.n_uplayers))
             results.write("<SURFACE-TEMPERATURE>{}\n".format(
                 self.planet_data["SurfaceTemperature"]))
             results.write("<SURFACE-ALBEDO>{}\n".format(
@@ -1041,7 +1147,7 @@ class PSG(object):
 
     def send(self, keep_files=("trn", "lyr", "rad", "noi", "log", "atm", "err"),
              run=True):
-        """This function send the the file file_name to the NASA GSFC PSG for 
+        """This function send the the file cdf_file to the NASA GSFC PSG for
         analysis It will not return anything, but will write files in the 
         current directory.
 
@@ -1072,7 +1178,7 @@ class PSG(object):
             # print(filetail)
             # print(sections)
             self.returned_files = []
-            for i in range(sections):
+            for _ in iter(range(sections)):
                 outname = filestem + filetail
                 self.returned_files.append(outname)
                 with open(outname, "w") as wri:
@@ -1102,11 +1208,10 @@ class PSG(object):
         self._file_stem = rad_file.split("_psg")[0]
         name_parts = self._file_stem.split("_")
         self._title_stem = "{} {} {}".format(
-            self.planet, name_parts[1], name_parts[2])
+            name_parts[0], name_parts[1], name_parts[2])
 
         radfil = np.loadtxt(rad_file, unpack=True)
         self.Wavelengths = radfil[0]
-        print(len(self.Wavelengths))
         self.Total = radfil[1]
         self.Noise = radfil[2]
         self.Stellar = radfil[3]
@@ -1166,7 +1271,7 @@ class PSG(object):
         true_depth = -self.Transit / self.Stellar - self.planet_data["DepthEff"]
         den = (2 * self.planet_data["Radius"]
                * self.planet_data["ScaleHeight"])
-        ax.step(self.Wavelengths, (true_depth * self.star_data["Radius"]**2
+        ax.step(self.Wavelengths, (true_depth * self.star_data["Radius"] ** 2
                                    / den),
                 linewidth=0.25, c="b", label="Transit TransitDepth ",
                 where="post")
@@ -1273,7 +1378,7 @@ class PSG(object):
     def signal_noise_ratio(self):
         fig = plt.figure(figsize=(10, 6))
         ax = fig.gca()
-        ax.step(self.Wavelengths, -self.Transit / self.Noise*100,
+        ax.step(self.Wavelengths, -self.Transit / self.Noise * 100,
                 linewidth=0.5, c="g", label="Signal/Noise", where="post")
         ax.axhline(1.0, label="1")
         ax.legend()
@@ -1507,8 +1612,8 @@ class PSG(object):
     def depth_noise(self):
         fig = plt.figure(figsize=(10, 6))
         ax = fig.gca()
-        real_depth = (-self.Transit+np.random.normal(0, self.nTotal)
-                      )/self.Stellar
+        real_depth = (-self.Transit + np.random.normal(0, self.nTotal)
+                      ) / self.Stellar
         ax.step(self.Wavelengths, real_depth * 1e6, linewidth=0.5, c="b",
                 where="post")
         ax.set_title("Depth Plotted with Noise\n{}".format(
@@ -1519,6 +1624,52 @@ class PSG(object):
         ax.xaxis.grid(True)
         fig.savefig("{}_depth_nois.png".format(self._file_stem))
         plt.close(fig)
+
+    def pandexo_noise(self, scope):
+        """This function creates a set instrument parameters using pandas
+        This is meant to give us noise simulations to more accurately predict
+        transits. Check parent class for more details"""
+        import warnings
+        warnings.filterwarnings("ignore")
+        import pandexo.engine.justdoit as jdi
+
+        # Object Parameters
+        exo_dict = jdi.load_exo_dict()
+        exo_dict["observation"]["sat_level"] = 80
+        exo_dict["observation"]["sat_unit"] = "%"
+        exo_dict["observation"]["noccultations"] = 1
+        exo_dict["observation"]["R"] = None
+        exo_dict["observation"]["baseline"] = 4. * 60. * 60.
+        exo_dict["observation"]["baseline_unit"] = "total"
+        exo_dict["observation"]["noise_floor"] = 0
+
+        exo_dict["star"]["type"] = "phoenix"
+        exo_dict["star"]["mag"] = self.star_data["Magnitude"]
+        exo_dict["star"]["ref_wave"] = 1.25
+        exo_dict["star"]["temp"] = self.star_data["Temperature"]
+        exo_dict["star"]["metal"] = self.star_data["Metallicity"]
+        exo_dict["star"]["logg"] = self.star_data["Gravity"]
+        exo_dict["star"]["radius"] = self.star_data["SRadius"]
+        exo_dict["star"]["r_unit"] = "R_sun"
+
+        exo_dict["planet"]["type"] = "user"
+        exo_dict["planet"]["exopath"] = self.pand_fil
+        exo_dict["planet"]["w_unit"] = "um"
+        exo_dict["planet"]["f_unit"] = "rp^2/r*^2"
+        exo_dict["planet"]["transit_duration"] = 2 * 60. * 60.
+        exo_dict["planet"]["td_unit"] = "s"
+        exo_dict["planet"]["temp"] = self.planet_data["SurfaceTemperature"]
+        exo_dict["planet"]["radius"] = self.planet_data["Radius"]
+        exo_dict["planet"]["r_unit"] = u.meter
+        exo_dict["planet"]["mass"] = self.planet_data["Mass"]
+        exo_dict["planet"]["m_unit"] = u.kilogram
+
+        # Instrument Parameters
+        inst_dict = jdi.load_mode_dict(scope)
+
+        # Runs PandExo
+        result = jdi.run_pandedo(exo_dict, inst_dict,
+                                 output_file=self._file_stem + "pandexo.txt")
 
 
 class PSGCompared(object):
@@ -1557,8 +1708,8 @@ class PSGCompared(object):
                 Stellar = contents[3]
                 sig = -Transit / Stellar * 1.0e6
                 ax.step(self.WavelengthSpec, sig, c=self.colors[i],
-                         linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
-                         where="post")
+                        linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
+                        where="post")
                 plt.axhline(np.mean(sig[2630:2634]), c=self.colors[i])
                 plt.annotate(
                     "{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(sig[2630:2634])),
@@ -1567,10 +1718,10 @@ class PSGCompared(object):
                         np.mean(sig[2630:2634]) - 6),
                     fontsize=16)
         ax.set_title(r"\huge Transit Depths for 1 bar N$_{2}$ Planet with Line "
-                  r"at CO$_{2}$ 15\si{\micro \meter} Peak")
+                     r"at CO$_{2}$ 15\si{\micro \meter} Peak")
         plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
         ax.set_xlim(np.min(self.WavelengthSpec) - 2,
-                 np.max(self.WavelengthSpec) + 2)
+                    np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
         leg = ax.legend(loc=2, fontsize=15)
         for label in leg.get_lines():
@@ -1578,7 +1729,6 @@ class PSGCompared(object):
             ax = plt.axes()
             ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "N2CombinedPlots.png", dpi=300)
-        
 
     def NoN2CombPlot(self):
         fig = plt.figure(figsize=(12, 15))
@@ -1595,18 +1745,18 @@ class PSGCompared(object):
                     Stellar = contents[3]
                     sig = -Transit / Stellar * 1.0e6
                     ax.step(self.WavelengthSpec, sig, c=self.colors[i],
-                             linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
-                             where="post")
+                            linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
+                            where="post")
                     plt.axhline(np.mean(sig[2630:2634]), c=self.colors[i])
                     plt.annotate("{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(
                         sig[2630:2634])),
                                  (np.max(self.WavelengthSpec) - 3.8,
                                   np.mean(sig[2630:2634]) - 8), fontsize=16)
         ax.set_title(r"\huge Transit Depths for 0 bar N$_{2}$ Planet with Line "
-                  "at CO$_{2}$ 15\si{\micro \meter} Peak")
+                     "at CO$_{2}$ 15\si{\micro \meter} Peak")
         plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
         ax.set_xlim(np.min(self.WavelengthSpec) - 2,
-                 np.max(self.WavelengthSpec) + 2)
+                    np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
         leg = ax.legend(loc=2, fontsize=15)
         for label in leg.get_lines():
@@ -1614,7 +1764,6 @@ class PSGCompared(object):
             ax = plt.axes()
             ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "NoN2CombinedPlots.png", dpi=300)
-        
 
     def PeakCompare(self):
         fig = plt.figure(figsize=(8, 6))
@@ -1652,7 +1801,6 @@ class PSGCompared(object):
         ax = plt.axes()
         ax.xaxis.grid(True)
         fig.savefig(self.outputfile + "PeakCompare.png", dpi=300)
-        
 
 
 def PSGCompare(filename):
