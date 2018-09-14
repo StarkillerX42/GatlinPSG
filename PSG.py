@@ -6,8 +6,9 @@ from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
-warnings.filterwarnings("ignore")
 import pandexo.engine.justdoit as jdi
+warnings.filterwarnings("ignore")
+
 
 __author__ = "Dylan_Gatlin"
 __version__ = 3.6
@@ -119,6 +120,7 @@ class PSG(object):
         self.phase = None
         self.cdf_file = None
         self.profile_file = None
+        self._profile_bool = None
 
         # PSG Variables
         self.scope = None
@@ -155,6 +157,10 @@ class PSG(object):
         self.nTelescope = None
         self.nBackground = None
         self.nReal = None
+
+        # Pandexo variables
+        self.pand_fil = None
+        self.pandexo_result = None
 
     def fetch_archive(self, is_earth: bool = False):
         self.is_earth = is_earth
@@ -268,7 +274,7 @@ class PSG(object):
 
         self.phase = phase
         self.cdf_file = cdf_file
-        print("    Accessing netCDF contents")
+        print("Accessing netCDF contents")
 
         # noinspection PyShadowingNames
         def hybrid2pressure(cdf):
@@ -300,11 +306,11 @@ class PSG(object):
             hyam = cdf["hyam"][:]
             hybm = cdf["hybm"][:]
             r = 8.314 / molar_mass
-            z = np.zeros((len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])))
+            z = np.zeros((len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])+1))
             iz = z[:]
             for i, lat in enumerate(cdf["lat"][:]):
                 for j, lon in enumerate(cdf["lon"]):
-                    for k in iter(range(len(cdf["lev"]) - 1, 0, -1)):
+                    for k in iter(range(len(cdf["lev"]), 0, -1)):
                         p1 = hyai[k] * p0 + hybi[k] * ps[i, j]
                         p2 = hyai[k - 1] * p0 + hybi[k - 1] * ps[i, j]
                         delta_z = r * t[k - 1, i, j] / g * np.log(p1 / p2)
@@ -315,42 +321,56 @@ class PSG(object):
             return z, iz
 
         netcdf = Dataset(cdf_file)
-        if 95 < phase <= 265:
-            left_ang = phase - 90.
-            right_ang = phase + 90.
-        elif phase <= 95:
-            left_ang = 270 + phase
-            right_ang = phase + 90.
-        elif phase > 265:
-            left_ang = phase - 90.
-            right_ang = 270. - phase
-        else:
-            left_ang = 0.
-            right_ang = 0.
-        left_bool = ((left_ang - 5 <= netcdf["lon"][:])
-                     & (netcdf["lon"][:] <= left_ang + 5))
-        right_bool = ((right_ang - 5 <= netcdf["lon"][:])
-                      & (netcdf["lon"][:] <= right_ang + 5))
-        profile_bool = left_bool ^ right_bool
+        long = (phase + 180) % 360  # Longitude is opposite of PSG's phase
+        # conventions, long refers to the longitude of the cdf file, phase
+        # refers to the orbital phase in PSG. Transit is for phase of 180,
+        # but it grabs from the terminator at 90 and 270. For non-transits,
+        # the whole earth-facing side is averaged.
+        if 177 <= phase <= 183:  # For transits, the terminator is selected
+            self.is_transit = True
+            left_ang = long - 90.
+            right_ang = long + 90.
+            left_bool = ((left_ang - 5 <= netcdf["lon"][:])
+                         & (netcdf["lon"][:] <= left_ang + 5))
+            right_bool = ((right_ang - 5 <= netcdf["lon"][:])
+                          & (netcdf["lon"][:] <= right_ang + 5))
+            self._profile_bool = left_bool ^ right_bool
+        else:  # Else, the Earth-facing side is selected
+            left_ang = long - 90.
+            right_ang = long + 90.
+            left_ang = left_ang % 360
+            right_ang = right_ang % 360  # This accounts for negative or large
+            # left and right angles. (ie. if phase is below 90 or above 270
+            if left_ang < right_ang:  # if phase-90 < 0
+                self._profile_bool = ((left_ang <= netcdf["lon"][:])
+                                      & (right_ang >= netcdf["lon"][:]))
+            else:
+                self._profile_bool = ((left_ang <= netcdf["lon"][:])
+                                      ^ (right_ang >= netcdf["lon"][:]))
         area_weight = np.cos(np.deg2rad(netcdf["lat"][:]))
-        t_pro = np.average(np.average(netcdf["T"][0, :, :, profile_bool],
+        t_pro = np.average(np.average(netcdf["T"][0, :, :, self._profile_bool],
                                       axis=2), axis=1, weights=area_weight)
-        q_pro = np.average(np.average(netcdf["Q"][0, :, :, profile_bool],
+        q_pro = np.average(np.average(netcdf["Q"][0, :, :, self._profile_bool],
                                       axis=2), axis=1, weights=area_weight)
         ch4_vmr = netcdf["ch4vmr"][0]
         co2_vmr = netcdf["co2vmr"][0]
         n2_vmr = 1 - co2_vmr - ch4_vmr
-        cldliq = np.average(np.average(netcdf["CLDLIQ"][0, :, :, profile_bool],
-                                       axis=2), axis=1, weights=area_weight)
-        cldice = np.average(np.average(netcdf["CLDICE"][0, :, :, profile_bool],
-                                       axis=2), axis=1, weights=area_weight)
-        reffliq = np.average(np.average(netcdf["REL"][0, :, :, profile_bool],
-                                        axis=2), axis=1, weights=area_weight)
-        reffice = np.average(np.average(netcdf["REI"][0, :, :, profile_bool],
-                                        axis=2), axis=1, weights=area_weight)
-        p_surf = np.average(np.average(netcdf["PS"][0, :, profile_bool],
-                                       axis=1), axis=0, weights=area_weight)
-        t_surf = np.average(np.average(netcdf["TS"][0, :, profile_bool],
+        cldliq = np.average(np.average(
+            netcdf["CLDLIQ"][0, :, :, self._profile_bool], axis=2), axis=1,
+            weights=area_weight)
+        cldice = np.average(np.average(
+            netcdf["CLDICE"][0, :, :, self._profile_bool], axis=2), axis=1,
+            weights=area_weight)
+        reffliq = np.average(np.average(
+            netcdf["REL"][0, :, :, self._profile_bool], axis=2), axis=1,
+            weights=area_weight)
+        reffice = np.average(np.average(
+            netcdf["REI"][0, :, :, self._profile_bool], axis=2), axis=1,
+            weights=area_weight)
+        p_surf = np.average(np.average(netcdf["PS"][0, :, self._profile_bool],
+                                       axis=1),
+                            axis=0, weights=area_weight) / 100 / 1000
+        t_surf = np.average(np.average(netcdf["TS"][0, :, self._profile_bool],
                                        axis=1), axis=0, weights=area_weight)
         albedos = netcdf["FUS"][0] / netcdf["FDS"][0]
         albedo = np.average(np.average(np.ma.masked_array(albedos[-1],
@@ -367,10 +387,10 @@ class PSG(object):
         heights, iheights = hybrid2height(netcdf, self.planet_data["Gravity"],
                                           m_weight_dry)
         pressures, ipressures = hybrid2pressure(netcdf)
-        p_pro = np.average(np.average(pressures[:, profile_bool], axis=0,
-                                      weights=area_weight), axis=0) / 100
-        h_pro = np.average(np.average(heights[:, profile_bool], axis=0,
-                                      weights=area_weight), axis=0)
+        p_pro = np.average(np.average(pressures[:, self._profile_bool], axis=0,
+                                      weights=area_weight), axis=0) / 100 / 1000
+        h_pro = np.average(np.average(heights[:, self._profile_bool, :-1],
+                                      axis=0, weights=area_weight), axis=0)
         q_mmr = q_pro / (1. - q_pro)
         q_vmr_dry = q_mmr * 28.0059 / 18.01528
         q_vmr_wet = q_vmr_dry / (1 + q_vmr_dry)
@@ -384,7 +404,11 @@ class PSG(object):
                                       "CO2", "CH4", "H2O", "LiquidCloud",
                                       "IceCloud", "LiquidCloudSize",
                                       "IceCloudSize"])
-        self.profile_file = cdf_file.split(".cam")[0] + "_terminator.txt"
+        if self.is_transit:
+            self.profile_file = cdf_file.split(".cam")[0] + "_terminator.txt"
+        else:
+            self.profile_file = (cdf_file.split(".cam")[0] + "_"
+                                 + str(phase) + "_pro.txt")
         with open(self.profile_file, "w") as out:
             out.write("# Simulation:  {}\n".format(
                 cdf_file.split(".cam")[0]))
@@ -399,11 +423,11 @@ class PSG(object):
             out.write("# Surf Press (mb)    Surf Temp (K)        Surf Albedo   "
                       "       Dry Molar Weight     Phase\n")
             out.write("#{:<20.7f}#{:<20.7f}#{:<20.7f}#{:<20.7f}#{:<20.7f}\n".
-                      format(p_surf, t_surf, albedo, m_weight_dry, phase))
+                      format(p_surf, t_surf, albedo, m_weight_dry*1000, phase))
             out.write("{:4.20s}{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}"
                       "{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}{:>20.20s}"
                       "{:>20.20s}{:>20.20s}\n".format("# Lev", "Height (m)",
-                                                      "Pressure (mb)",
+                                                      "Pressure (bar)",
                                                       "Temperature (K)",
                                                       "N2 (vmr)", "CO2 (vmr)",
                                                       "CH4 (vmr)", "H2O (vmr)",
@@ -425,33 +449,12 @@ class PSG(object):
 
         """See PSG parent class docstring for details"""
 
-        # Relevant if there are phase curves, this method isn't very good
-        # unless you're using the terminator
-        if "lon" not in self.profile_file:
-            if 178 < self.phase <= 182:
-                self.profile_file = self.profile_file
-                print("    Using terminator profile")
-            if 135 < self.phase <= 178 or 182 < self.phase <= 225:
-                self.profile_file = self.profile_file.split("_term")[0] \
-                                    + "_antistellar.txt "
-                print("    Using antistellar profile")
-            if 45 < self.phase <= 135 or 225 < self.phase <= 315:
-                self.profile_file = self.profile_file.split("_term")[0] \
-                                    + "_globalmean.txt"
-                print("    Using globalmean profile")
-            if 0 <= self.phase <= 45 or 315 < self.phase <= 360:
-                self.profile_file = self.profile_file.split("_term")[0] \
-                                    + "_substellar.txt"
-                print("    Using substellar profile")
-        elif "lon" in self.profile_file:
-            print("    Using provided file, phase is {}".format(self.phase))
-
         # GCM Inputs
         with open(self.profile_file, "r") as fp:
             lines = fp.readlines()
             line = lines[6]
             c = line.split("#")
-            self.planet_data["SurfacePressure"] = float(c[1]) / 1000.0
+            self.planet_data["SurfacePressure"] = float(c[1])
             self.planet_data["SurfaceTemperature"] = float(c[2])
             self.planet_data["Albedo"] = float(c[3])
             self.planet_data["MWeightDry"] = float(c[4])
@@ -461,7 +464,7 @@ class PSG(object):
         layers_profile = profile[0] + 1
         self.n_downlayers = len(layers_profile)
         heights_profile = np.flipud(profile[1])  # m
-        pressure_profile = np.flipud(profile[2] / 1000)  # bar
+        pressure_profile = np.flipud(profile[2])  # mbar
         temperature_profile = np.flipud(profile[3])  # K
         n2_profile = np.flipud(profile[4])  # vmr
         co2_profile = np.flipud(profile[5])  # vmr
@@ -657,7 +660,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -705,7 +708,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -752,7 +755,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -800,7 +803,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -848,7 +851,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -895,7 +898,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -943,7 +946,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -990,7 +993,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -1029,7 +1032,7 @@ class PSG(object):
                 results.write("<GENERATOR-NOISEPIXELS>8\n")
                 results.write("<GENERATOR-TRANS-APPLY>N\n")
                 results.write("<GENERATOR-TRANS-SHOW>N\n")
-                results.write("<GENERATOR-LOGRAD>Y\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
                 results.write("<GENERATOR-GAS-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-MODEL>Y\n")
                 results.write("<GENERATOR-CONT-STELLAR>Y\n")
@@ -1040,6 +1043,48 @@ class PSG(object):
                     "resolution of 600 RP. Molecular radiative-transfer "
                     "enabled; Continuum flux module enabled;\n")
                 results.write("<GENERATOR-TRANS>02-01\n")
+
+            elif self.scope == "OST-TRA":
+                results.write("< GENERATOR - INSTRUMENT > OST_MISC - TRA: TRA "
+                              "is the Transit Spectrometer of the Mid - "
+                              "Infrared Imager / Spectrograph / Coronagraph("
+                              "MISC) Instrument for the Origins Space "
+                              "Telescope (OST) concept.The instrument offers "
+                              "densified pupil spectroscopy with high "
+                              "photometric precision (1ppm on timescales of "
+                              "hours to days, excluding the fluctuation of "
+                              "detector gain).")
+                results.write("< GENERATOR - RANGE1 > 5")
+                results.write("< GENERATOR - RANGE2 > 20")
+                results.write("< GENERATOR - RANGEUNIT > um")
+                results.write("< GENERATOR - RESOLUTION > 50")
+                results.write("< GENERATOR - RESOLUTIONUNIT > RP")
+                results.write("< GENERATOR - TELESCOPE > SINGLE")
+                results.write("< GENERATOR - DIAMTELE > 9.0")
+                results.write("< GENERATOR - BEAM > 1")
+                results.write("< GENERATOR - BEAM - UNIT > diffrac")
+                results.write("< GENERATOR - TELESCOPE1 > 1")
+                results.write("< GENERATOR - TELESCOPE2 > 0.0")
+                results.write("< GENERATOR - TELESCOPE3 > 1.0")
+                results.write("< GENERATOR - NOISE > NEP")
+                results.write("< GENERATOR - NOISE1 > 2E-20")
+                results.write("< GENERATOR - NOISEOTEMP > 4.5")
+                results.write("< GENERATOR - NOISEOEFF > 0.1")
+                results.write("< GENERATOR - NOISEOEMIS > 0.1")
+                results.write("< GENERATOR - NOISETIME > {}".format(
+                    self.exposure_time))
+                results.write("< GENERATOR - NOISEFRAMES > {}".format(
+                    self.exposure_count))
+                results.write("< GENERATOR - NOISEPIXELS > 8")
+                results.write("< GENERATOR - TRANS - APPLY > N")
+                results.write("< GENERATOR - TRANS - SHOW > N")
+                results.write("< GENERATOR - TRANS > 03 - 01")
+                results.write("< GENERATOR - LOGRAD > N")
+                results.write("< GENERATOR - GAS - MODEL > Y")
+                results.write("< GENERATOR - CONT - MODEL > Y")
+                results.write("< GENERATOR - CONT - STELLAR > Y")
+                results.write("< GENERATOR - RADUNITS > {}".format(
+                    self.rad_units))
 
             elif self.scope == "ALMA_Band7":
                 results.write(
@@ -1110,18 +1155,18 @@ class PSG(object):
             results.write("<ATMOSPHERE-ABUN>1,1,1\n")
             results.write("<ATMOSPHERE-UNIT>scl,scl,scl\n")
             results.write("<ATMOSPHERE-NAERO>2\n")
-            results.write("<ATMOSPHERE-AEROS>Cloud, WaterIce\n")
-            results.write("White_GSFC[reff=1.0um 0.10-1000000.00um]"
-                          "<ATMOSPHERE-ATYPE>CRISM_Wolff[reff=2.0um "
-                          "0.31-99.57um]\n")
+            results.write("<ATMOSPHERE-AEROS>Cloud,WaterIce\n")
+            results.write("<ATMOSPHERE-ATYPE>"
+                          "White_GSFC[reff=1.0um 0.10-1000000.00um],"
+                          "CRISM_Wolff[reff=2.0um 0.31-99.57um]\n")
             results.write("<ATMOSPHERE-AABUN>{},{}\n".
                           format(self.planet_data["LiquidCloudAbundance"],
                                  self.planet_data["IceCloudAbundance"]))
             results.write("<ATMOSPHERE-AUNIT>scl,scl\n")
             results.write("<ATMOSPHERE-NMAX>0\n")
             results.write("<ATMOSPHERE-LMAX>0\n")
-            results.write("<ATMOSPHERE-ASIZE>{},{}\n".format(
-                self.planet_data["MeanLiquidCloudSize"],
+            results.write("<ATMOSPHERE-ASIZE>{},{:.3f}\n".format(
+                10,
                 self.planet_data["MeanIceCloudSize"]))
             results.write(
                 "<ATMOSPHERE-LAYERS-MOLECULES>Altitude,N2,CO2,H2O,Cloud"
@@ -1171,8 +1216,7 @@ class PSG(object):
                 if "results_" in line:
                     sections += 1
             if sections == 0:  # Happens if the PSG is down or file is incorrect
-                print("    No results returned from PSG")
-                exit()
+                raise Exception("No results returned from PSG")
             allfile.seek(0)
             filetail = allfile.readline().split("_")[1].split("\n")[0]
             # print(filetail)
@@ -1226,27 +1270,29 @@ class PSG(object):
             self.Thermal = radfil[6]
         self._plot_range = (self.Wavelengths.min(), self.Wavelengths.max())
 
-        trnfil = np.loadtxt(self._file_stem + "_psgoutput_trn.txt",
-                            unpack=True)
-        self.tTotalSpec = trnfil[1]
-        self.tN2Spec = trnfil[2]
-        self.tCO2Spec = trnfil[3]
-        self.tH2OSpec = trnfil[4]
-        self.tIceSpec = trnfil[5]
-        self.tCloudSpec = trnfil[6]
-        try:
-            self.tCIASpec = trnfil[7]
-        except IndexError:
-            self.tCIASpec = np.linspace(1, 1, len(self.tWavelengthSpec))
+        if os.path.isfile(self._file_stem + "_psgoutput_trn.txt"):
+            trnfil = np.loadtxt(self._file_stem + "_psgoutput_trn.txt",
+                                unpack=True)
+            self.tTotalSpec = trnfil[1]
+            self.tN2Spec = trnfil[2]
+            self.tCO2Spec = trnfil[3]
+            self.tH2OSpec = trnfil[4]
+            self.tIceSpec = trnfil[5]
+            self.tCloudSpec = trnfil[6]
+            try:
+                self.tCIASpec = trnfil[7]
+            except IndexError:
+                self.tCIASpec = np.linspace(1, 1, len(self.tWavelengthSpec))
 
-        noi_fil = np.loadtxt(self._file_stem + "_psgoutput_noi.txt",
-                             unpack=True)
-        self.nTotal = noi_fil[1]
-        self.nSource = noi_fil[2]
-        self.nDetector = noi_fil[3]
-        self.nTelescope = noi_fil[4]
-        self.nBackground = noi_fil[5]
-        self.nReal = np.random.normal(0, self.nTotal, len(self.nTotal))
+        if os.path.isfile(self._file_stem + "_psgoutput_noi.txt"):
+            noi_fil = np.loadtxt(self._file_stem + "_psgoutput_noi.txt",
+                                 unpack=True)
+            self.nTotal = noi_fil[1]
+            self.nSource = noi_fil[2]
+            self.nDetector = noi_fil[3]
+            self.nTelescope = noi_fil[4]
+            self.nBackground = noi_fil[5]
+            self.nReal = np.random.normal(0, self.nTotal, len(self.nTotal))
 
         print("Ready to Make Plots")
 
@@ -1629,10 +1675,13 @@ class PSG(object):
         """This function creates a set instrument parameters using pandas
         This is meant to give us noise simulations to more accurately predict
         transits. Check parent class for more details"""
-        import warnings
-        warnings.filterwarnings("ignore")
-        import pandexo.engine.justdoit as jdi
 
+        # Create a pandexo ready transit file
+        self.pand_fil = self._file_stem + "_depth.txt"
+        with open(self.pand_fil, "w") as fil:
+            for wave, dep in zip(self.Wavelengths, self.Transit):
+                fil.write("{:10.7e}{:10.7f}\n".format(wave*1e-6, dep))
+        print(self.pand_fil)
         # Object Parameters
         exo_dict = jdi.load_exo_dict()
         exo_dict["observation"]["sat_level"] = 80
@@ -1656,7 +1705,8 @@ class PSG(object):
         exo_dict["planet"]["exopath"] = self.pand_fil
         exo_dict["planet"]["w_unit"] = "um"
         exo_dict["planet"]["f_unit"] = "rp^2/r*^2"
-        exo_dict["planet"]["transit_duration"] = 2 * 60. * 60.
+        exo_dict["planet"]["transit_duration"] = (self.exposure_count
+                                                  * self.exposure_time)
         exo_dict["planet"]["td_unit"] = "s"
         exo_dict["planet"]["temp"] = self.planet_data["SurfaceTemperature"]
         exo_dict["planet"]["radius"] = self.planet_data["Radius"]
@@ -1668,8 +1718,10 @@ class PSG(object):
         inst_dict = jdi.load_mode_dict(scope)
 
         # Runs PandExo
-        result = jdi.run_pandedo(exo_dict, inst_dict,
-                                 output_file=self._file_stem + "pandexo.txt")
+        output = os.path.abspath(self._file_stem + "_pandexo.txt")
+        print(output)
+        self.pandexo_result = jdi.run_pandexo(exo_dict, inst_dict,
+                                              output_path=output)
 
 
 class PSGCompared(object):
