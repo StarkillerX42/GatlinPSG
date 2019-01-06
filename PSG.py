@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from astropy.table import Table
 import astropy.units as u
@@ -6,12 +7,13 @@ from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
-import pandexo.engine.justdoit as jdi
+import starcoder42 as s
 warnings.filterwarnings("ignore")
-
+import pandexo.engine.justdoit as jdi
+assert sys.version >= "3.6", "Only runs on Python 3.6 or higher"
 
 __author__ = "Dylan_Gatlin"
-__version__ = 3.6
+__version__ = 3.7
 psg_scopes = ["MIRI-LRS", "MIRI-MRS", "NIRCam-Grism", "NIRISS-SOSS",
               "NIRSpec-1000", "NIRSpec-2700", "NIRSpec-Prism", "Hubble",
               "Spitzer-Short-High", "ALMA_Band_7"]
@@ -29,13 +31,15 @@ class PSG(object):
     models. The goal is to create a versatile PSG object which can be
     interacted with via jupyter notebooks. The proper way to run the PSG is:
 
-    planet = PSG.PSG(planet_name, cdf_file, is_earth, astmosphere_ceiling,
-                     n_uplayers, phase)
-    planet.calculate(skprows)
-    planet.write(scope, exposure_time, exposure_count, rad_units)
-    planet.send(run)
+    planet = PSG.PSG(planet_name)
+    planet.fetch_archive(is_earth)
+    planet.from_cdf(cdf_file, phase)
+    planet.calculate(atmosphere_ceiling, n_uplayers)
+    planet.write(scope, exp_time, n_exposures, rad_units)
+    planet.send(keep_files, run)
     planet.plot_setup()
-    planet.<plot_function>
+    planet.depth_plot()
+
 
     Required Files:
 
@@ -120,7 +124,9 @@ class PSG(object):
         self.phase = None
         self.cdf_file = None
         self.profile_file = None
-        self._profile_bool = None
+        self.cdf_atmosphere = None
+        self.netcdf = None
+        self.mask = None
 
         # PSG Variables
         self.scope = None
@@ -162,6 +168,8 @@ class PSG(object):
         self.pand_fil = None
         self.pandexo_result = None
 
+        print(f"Starting PSG for {planet_name}")
+
     def fetch_archive(self, is_earth: bool = False):
         self.is_earth = is_earth
 
@@ -169,7 +177,7 @@ class PSG(object):
             need_file = True
         else:
             st = os.stat("exoplanets.csv")
-            age = time.time() - st.st_mtime
+            age = time.time()-st.st_mtime
             if age > (3600 * 24 * 2.0):
                 need_file = True
             else:
@@ -228,6 +236,7 @@ class PSG(object):
             star_gravity = 4.4
             transit_depth = str(float(planet_erad)
                                 / float(star_srad) * 0.009154)
+
         # Converts NASA"s values to proper units
         self.planet_data["Name"] = planet_name
         self.planet_data["Mass"] = float(planet_emass) * 5.9736e24
@@ -235,9 +244,9 @@ class PSG(object):
         self.planet_data["Radius"] = float(planet_erad) * 6371.0
         self.planet_data["Diameter"] = self.planet_data["Radius"] * 2
         self.planet_data["SemiMajorAxis"] = float(sma)
-        self.planet_data["Inclination"] = float(inclination) * 1361.
+        self.planet_data["Inclination"] = float(inclination)
         self.planet_data["TransitDepth"] = float(transit_depth) / 100
-        self.planet_data["Insolation"] = float(insolation)
+        self.planet_data["Insolation"] = float(insolation) * 1361.
         self.star_data["SRadius"] = float(star_srad)
         self.star_data["Radius"] = self.star_data["SRadius"] * 1.39e6
         self.star_data["Velocity"] = float(star_velocity)
@@ -274,7 +283,7 @@ class PSG(object):
 
         self.phase = phase
         self.cdf_file = cdf_file
-        print("Accessing netCDF contents")
+        print("    Accessing netCDF contents")
 
         # noinspection PyShadowingNames
         def hybrid2pressure(cdf):
@@ -312,98 +321,123 @@ class PSG(object):
                 for j, lon in enumerate(cdf["lon"]):
                     for k in iter(range(len(cdf["lev"]), 0, -1)):
                         p1 = hyai[k] * p0 + hybi[k] * ps[i, j]
-                        p2 = hyai[k - 1] * p0 + hybi[k - 1] * ps[i, j]
-                        delta_z = r * t[k - 1, i, j] / g * np.log(p1 / p2)
-                        iz[i, j, k - 1] = iz[i, j, k] + delta_z
-                        p_prime = hyam[k - 1] * p0 + hybm[k - 1] * ps[i, j]
-                        z_scale = -r * t[k - 1, i, j] / g * np.log(p_prime / p1)
-                        z[i, j, k - 1] = iz[i, j, k] + z_scale
+                        p2 = hyai[k-1] * p0 + hybi[k-1] * ps[i, j]
+                        delta_z = r * t[k-1, i, j] / g * np.log(p1 / p2)
+                        iz[i, j, k-1] = iz[i, j, k] + delta_z
+                        p_prime = hyam[k-1] * p0 + hybm[k-1] * ps[i, j]
+                        z_scale = -r * t[k-1, i, j] / g * np.log(p_prime / p1)
+                        z[i, j, k-1] = iz[i, j, k] + z_scale
             return z, iz
 
-        netcdf = Dataset(cdf_file)
-        long = (phase + 180) % 360  # Longitude is opposite of PSG's phase
+        self.netcdf = Dataset(cdf_file)
+        long = (180-phase) % 360  # Longitude is opposite of PSG's phase
         # conventions, long refers to the longitude of the cdf file, phase
         # refers to the orbital phase in PSG. Transit is for phase of 180,
         # but it grabs from the terminator at 90 and 270. For non-transits,
         # the whole earth-facing side is averaged.
         if 177 <= phase <= 183:  # For transits, the terminator is selected
             self.is_transit = True
-            left_ang = long - 90.
-            right_ang = long + 90.
-            left_bool = ((left_ang - 5 <= netcdf["lon"][:])
-                         & (netcdf["lon"][:] <= left_ang + 5))
-            right_bool = ((right_ang - 5 <= netcdf["lon"][:])
-                          & (netcdf["lon"][:] <= right_ang + 5))
-            self._profile_bool = left_bool ^ right_bool
+            left_ang = (long - 90.) % 360.  # Use % to account for sub-zero angs
+            right_ang = (long + 90.) % 360.
+            left_bool = ((left_ang-5. <= self.netcdf["lon"][:])
+                         & (self.netcdf["lon"][:] <= left_ang + 5.))
+            right_bool = ((right_ang-5. <= self.netcdf["lon"][:])
+                          & (self.netcdf["lon"][:] <= right_ang + 5.))
+            phase_mask = left_bool ^ right_bool
+            lon_weight = np.ones(len(self.netcdf["lon"]))  # If it's a transit,
+            # we need a different longitude weight than a disk average
         else:  # Else, the Earth-facing side is selected
-            left_ang = long - 90.
-            right_ang = long + 90.
-            left_ang = left_ang % 360
-            right_ang = right_ang % 360  # This accounts for negative or large
-            # left and right angles. (ie. if phase is below 90 or above 270
-            if left_ang < right_ang:  # if phase-90 < 0
-                self._profile_bool = ((left_ang <= netcdf["lon"][:])
-                                      & (right_ang >= netcdf["lon"][:]))
+            left_ang = (long-90.) % 360.
+            right_ang = (long+90.) % 360.
+            # print(left_ang, right_ang)
+            if left_ang < right_ang:
+                phase_mask = ((left_ang <= self.netcdf["lon"][:])
+                              & (self.netcdf["lon"][:] <= right_ang))
             else:
-                self._profile_bool = ((left_ang <= netcdf["lon"][:])
-                                      ^ (right_ang >= netcdf["lon"][:]))
-        area_weight = np.cos(np.deg2rad(netcdf["lat"][:]))
-        t_pro = np.average(np.average(netcdf["T"][0, :, :, self._profile_bool],
-                                      axis=2), axis=1, weights=area_weight)
-        q_pro = np.average(np.average(netcdf["Q"][0, :, :, self._profile_bool],
-                                      axis=2), axis=1, weights=area_weight)
-        ch4_vmr = netcdf["ch4vmr"][0]
-        co2_vmr = netcdf["co2vmr"][0]
-        n2_vmr = 1 - co2_vmr - ch4_vmr
-        cldliq = np.average(np.average(
-            netcdf["CLDLIQ"][0, :, :, self._profile_bool], axis=2), axis=1,
-            weights=area_weight)
-        cldice = np.average(np.average(
-            netcdf["CLDICE"][0, :, :, self._profile_bool], axis=2), axis=1,
-            weights=area_weight)
-        reffliq = np.average(np.average(
-            netcdf["REL"][0, :, :, self._profile_bool], axis=2), axis=1,
-            weights=area_weight)
-        reffice = np.average(np.average(
-            netcdf["REI"][0, :, :, self._profile_bool], axis=2), axis=1,
-            weights=area_weight)
-        p_surf = np.average(np.average(netcdf["PS"][0, :, self._profile_bool],
-                                       axis=1),
-                            axis=0, weights=area_weight) / 100 / 1000
-        t_surf = np.average(np.average(netcdf["TS"][0, :, self._profile_bool],
-                                       axis=1), axis=0, weights=area_weight)
-        albedos = netcdf["FUS"][0] / netcdf["FDS"][0]
-        albedo = np.average(np.average(np.ma.masked_array(albedos[-1],
-                                                          np.isnan(
-                                                              albedos[-1])),
-                                       axis=0, weights=area_weight))
+                phase_mask = ((left_ang <= self.netcdf["lon"][:])
+                              ^ (right_ang >= self.netcdf["lon"][:]))
+            lon_weight = np.cos(np.deg2rad(self.netcdf["lon"][:] + phase + 180))
+        lat_weight = np.round(np.cos(np.deg2rad(self.netcdf["lat"][:]))**2, 5)
+        weight_grid = np.outer(lat_weight, lon_weight)
+        self.lon_weight = lon_weight
+        self.lat_weight = lat_weight
+        self.phase_mask = phase_mask
+        self.mask = (weight_grid > 0) & phase_mask
+        t_pro = np.average(
+                    np.average(
+                        self.netcdf["T"][0, :, :, phase_mask],
+                        axis=2, weights=lon_weight[phase_mask]),
+                    axis=1, weights=lat_weight)
+        q_pro = np.average(
+            np.average(
+                self.netcdf["Q"][0, :, :, phase_mask],
+                axis=2, weights=lon_weight[phase_mask]),
+            axis=1, weights=lat_weight)
+        ch4_vmr = self.netcdf["ch4vmr"][0]
+        co2_vmr = self.netcdf["co2vmr"][0]
+        n2_vmr = 1-co2_vmr-ch4_vmr
+        # All need to be averaged by cos^2 in lat and cos in lon, but np.average
+        # Can't handle an average over 2 of the 3 given dimensions
+        cldliq = np.average(
+            np.average(
+                self.netcdf["CLDLIQ"][0, :, :, phase_mask],
+                axis=2, weights=lon_weight[phase_mask]),
+            axis=1, weights=lat_weight)
+        cldice = np.average(
+            np.average(
+                self.netcdf["CLDICE"][0, :, :, phase_mask],
+                axis=2, weights=lon_weight[phase_mask]),
+            axis=1, weights=lat_weight)
+        reffliq = np.average(
+            np.average(
+                self.netcdf["REL"][0, :, :, phase_mask],
+                axis=2, weights=lon_weight[phase_mask]),
+            axis=1, weights=lat_weight)
+        reffice = np.average(
+            np.average(
+                self.netcdf["REI"][0, :, :, phase_mask],
+                axis=2, weights=lon_weight[phase_mask]),
+            axis=1, weights=lat_weight)
+        p_surf = np.average(
+            np.average(
+                self.netcdf["PS"][0, :, phase_mask],
+                axis=1, weights=lon_weight[phase_mask]),
+            axis=0, weights=lat_weight) / 100 / 1000
+        t_surf = np.average(
+            np.average(
+                self.netcdf["TS"][0, :, phase_mask],
+                axis=1, weights=lon_weight[phase_mask]),
+            axis=0, weights=lat_weight)
+        albedos = self.netcdf["FUS"][0, -1] / self.netcdf["FDS"][0, -1]
+        albedos[~self.mask] = np.nan
+        albedo = np.nansum(albedos * (weight_grid/np.nansum(
+            weight_grid[self.mask])))
+        # print(albedo)
 
-        if "barN2" in cdf_file:
-            amounts = [n2_vmr, co2_vmr, ch4_vmr]
-            m_weight_dry = np.average([0.0280, 0.0440, 0.01604],
-                                      weights=amounts)
-        else:
-            raise Exception("Non-N2 inclusive profiles not supported yet")
-        heights, iheights = hybrid2height(netcdf, self.planet_data["Gravity"],
+        amounts = [n2_vmr, co2_vmr, ch4_vmr]
+        m_weight_dry = np.average([0.0280, 0.0440, 0.01604],
+                                  weights=amounts)
+        heights, iheights = hybrid2height(self.netcdf,
+                                          self.planet_data["Gravity"],
                                           m_weight_dry)
-        pressures, ipressures = hybrid2pressure(netcdf)
-        p_pro = np.average(np.average(pressures[:, self._profile_bool], axis=0,
-                                      weights=area_weight), axis=0) / 100 / 1000
-        h_pro = np.average(np.average(heights[:, self._profile_bool, :-1],
-                                      axis=0, weights=area_weight), axis=0)
-        q_mmr = q_pro / (1. - q_pro)
+        pressures, ipressures = hybrid2pressure(self.netcdf)
+        p_pro = np.average(np.average(pressures[:, phase_mask], axis=0,
+                                      weights=lat_weight), axis=0) / 100 / 1000
+        h_pro = np.average(np.average(heights[:, phase_mask, :-1],
+                                      axis=0, weights=lat_weight), axis=0)
+        q_mmr = q_pro / (1.-q_pro)
         q_vmr_dry = q_mmr * 28.0059 / 18.01528
         q_vmr_wet = q_vmr_dry / (1 + q_vmr_dry)
         co2_vmr_wet = co2_vmr / (1 + q_vmr_wet)
         ch4_vmr_wet = ch4_vmr / (1 + q_vmr_wet)
-        n2_vmr_wet = 1.0 - co2_vmr_wet - ch4_vmr_wet - q_vmr_wet
-        cdf_atmosphere = Table([h_pro, p_pro, t_pro, n2_vmr_wet,
-                                co2_vmr_wet, ch4_vmr_wet, q_vmr_wet, cldliq,
-                                cldice, reffliq, reffice],
-                               names=["Heights", "Pressures", "Temps", "N2",
-                                      "CO2", "CH4", "H2O", "LiquidCloud",
-                                      "IceCloud", "LiquidCloudSize",
-                                      "IceCloudSize"])
+        n2_vmr_wet = 1.0-co2_vmr_wet-ch4_vmr_wet-q_vmr_wet
+        self.cdf_atmosphere = Table([h_pro, p_pro, t_pro, n2_vmr_wet,
+                                     co2_vmr_wet, ch4_vmr_wet, q_vmr_wet,
+                                     cldliq, cldice, reffliq, reffice],
+                                    names=["Heights", "Pressures", "Temps",
+                                           "N2", "CO2", "CH4", "H2O",
+                                           "LiquidCloud", "IceCloud",
+                                           "LiquidCloudSize", "IceCloudSize"])
         if self.is_transit:
             self.profile_file = cdf_file.split(".cam")[0] + "_terminator.txt"
         else:
@@ -435,7 +469,7 @@ class PSG(object):
                                                       "Ice Clouds",
                                                       "Liquid Size",
                                                       "Ice Size"))
-            for i, lvl in enumerate(cdf_atmosphere):
+            for i, lvl in enumerate(self.cdf_atmosphere):
                 out.write(
                     "{:5.0f}{:20.7f}{:20.7f}{:20.7f}{:20.7f}{:20.7E}{:20.7E}"
                     "{:20.7E}{:20.7E}{:20.7E}{:20.3f}{:20.3f}\n".format(
@@ -447,7 +481,11 @@ class PSG(object):
 
     def calculate(self, atmosphere_ceiling=0, n_uplayers: int = 0):
 
-        """See PSG parent class docstring for details"""
+        """See PSG parent class docstring for details
+        Steps done here:
+        1. Reads model file
+        2. Converts to PSG units
+        3. Adds layers to TOA"""
 
         # GCM Inputs
         with open(self.profile_file, "r") as fp:
@@ -497,7 +535,7 @@ class PSG(object):
         self.planet_data["IceCloudAbundance"] = int(
             any(i > 0. for i in self.atmosphere["IceCloud"]))
         self.planet_data["EffectiveTemp"] = (self.planet_data["Insolation"]
-                                             * (1 - self.planet_data["Albedo"])
+                                             * (1-self.planet_data["Albedo"])
                                              / (4 * 5.67e-8)) ** 0.25
         self.planet_data["ScaleHeight"] = (8.3144598
                                            * self.planet_data[
@@ -510,7 +548,7 @@ class PSG(object):
             # This handles the imaginary upper atmosphere levels from
             # the top layer to the specified pressure atmosphere_ceiling
             # Defines upper atmosphere abundances
-            ind = self.n_downlayers - 1
+            ind = self.n_downlayers-1
             (lyr, upheight, uppres, uptemp, upN2, upCO2, upCH4, upH2O, upLiq,
              upIce, uplsize, upisize) = self.atmosphere[ind]
             # Planet radius at top of atmosphere
@@ -520,7 +558,7 @@ class PSG(object):
                      + upheight)
 
             up_heights = np.geomspace(upheight + 2, uptop, n_uplayers)
-            up_pressures = uppres * np.exp(-(up_heights - upheight)
+            up_pressures = uppres * np.exp(-(up_heights-upheight)
                                            / self.planet_data["ScaleHeight"])
             up_indexes = range(n_uplayers)
             for i, h, p in zip(up_indexes, up_heights, up_pressures):
@@ -599,8 +637,8 @@ class PSG(object):
                 self.star_data["SRadius"]))
             results.write("<OBJECT-OBS-VELOCITY>{}\n".format(
                 self.star_data["Velocity"]))
-            results.write("<OBJECT-OBS-LONGITUDE>0.0\n")
-            results.write("<OBJECT-OBS-LATITUDE>{}\n".format(
+            results.write("<OBJECT-OBS-LONGITUDE>180\n")
+            results.write("<OBJECT-OBS-LATITUDE>{:.5f}\n".format(
                 self.planet_data["Inclination"]))
 
             # GEOMETRY
@@ -1045,93 +1083,136 @@ class PSG(object):
                 results.write("<GENERATOR-TRANS>02-01\n")
 
             elif self.scope == "OST-TRA":
-                results.write("< GENERATOR - INSTRUMENT > OST_MISC - TRA: TRA "
-                              "is the Transit Spectrometer of the Mid - "
+                results.write("<GENERATOR-INSTRUMENT>OST_MISC-TRA: TRA "
+                              "is the Transit Spectrometer of the Mid-"
                               "Infrared Imager / Spectrograph / Coronagraph("
                               "MISC) Instrument for the Origins Space "
                               "Telescope (OST) concept.The instrument offers "
                               "densified pupil spectroscopy with high "
                               "photometric precision (1ppm on timescales of "
                               "hours to days, excluding the fluctuation of "
-                              "detector gain).")
-                results.write("< GENERATOR - RANGE1 > 5")
-                results.write("< GENERATOR - RANGE2 > 20")
-                results.write("< GENERATOR - RANGEUNIT > um")
-                results.write("< GENERATOR - RESOLUTION > 50")
-                results.write("< GENERATOR - RESOLUTIONUNIT > RP")
-                results.write("< GENERATOR - TELESCOPE > SINGLE")
-                results.write("< GENERATOR - DIAMTELE > 9.0")
-                results.write("< GENERATOR - BEAM > 1")
-                results.write("< GENERATOR - BEAM - UNIT > diffrac")
-                results.write("< GENERATOR - TELESCOPE1 > 1")
-                results.write("< GENERATOR - TELESCOPE2 > 0.0")
-                results.write("< GENERATOR - TELESCOPE3 > 1.0")
-                results.write("< GENERATOR - NOISE > NEP")
-                results.write("< GENERATOR - NOISE1 > 2E-20")
-                results.write("< GENERATOR - NOISEOTEMP > 4.5")
-                results.write("< GENERATOR - NOISEOEFF > 0.1")
-                results.write("< GENERATOR - NOISEOEMIS > 0.1")
-                results.write("< GENERATOR - NOISETIME > {}".format(
+                              "detector gain).\n")
+                results.write("<GENERATOR-RANGE1>5\n")
+                results.write("<GENERATOR-RANGE2>20\n")
+                results.write("<GENERATOR-RANGEUNIT>um\n")
+                results.write("<GENERATOR-RESOLUTION>300\n")
+                results.write("<GENERATOR-RESOLUTIONUNIT>RP\n")
+                results.write("<GENERATOR-TELESCOPE>SINGLE\n")
+                results.write("<GENERATOR-DIAMTELE>9.0\n")
+                results.write("<GENERATOR-BEAM>1\n")
+                results.write("<GENERATOR-BEAM-UNIT>diffrac\n")
+                results.write("<GENERATOR-TELESCOPE1>1\n")
+                results.write("<GENERATOR-TELESCOPE2>0.0\n")
+                results.write("<GENERATOR-TELESCOPE3>1.0\n")
+                results.write("<GENERATOR-NOISE>NEP\n")
+                results.write("<GENERATOR-NOISE1>2E-20\n")
+                results.write("<GENERATOR-NOISEOTEMP>4.5\n")
+                results.write("<GENERATOR-NOISEOEFF>0.1\n")
+                results.write("<GENERATOR-NOISEOEMIS>0.1\n")
+                results.write("<GENERATOR-NOISETIME>{}\n".format(
                     self.exposure_time))
-                results.write("< GENERATOR - NOISEFRAMES > {}".format(
+                results.write("<GENERATOR-NOISEFRAMES>{}\n".format(
                     self.exposure_count))
-                results.write("< GENERATOR - NOISEPIXELS > 8")
-                results.write("< GENERATOR - TRANS - APPLY > N")
-                results.write("< GENERATOR - TRANS - SHOW > N")
-                results.write("< GENERATOR - TRANS > 03 - 01")
-                results.write("< GENERATOR - LOGRAD > N")
-                results.write("< GENERATOR - GAS - MODEL > Y")
-                results.write("< GENERATOR - CONT - MODEL > Y")
-                results.write("< GENERATOR - CONT - STELLAR > Y")
-                results.write("< GENERATOR - RADUNITS > {}".format(
+                results.write("<GENERATOR-NOISEPIXELS>8\n")
+                results.write("<GENERATOR-TRANS-APPLY>N\n")
+                results.write("<GENERATOR-TRANS-SHOW>N\n")
+                results.write("<GENERATOR-TRANS>03-01\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
+                results.write("<GENERATOR-GAS-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-STELLAR>Y\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
+                    self.rad_units))
+            
+            elif self.scope == "OST-MIRI":
+                results.write("<GENERATOR-INSTRUMENT> OST_MISC-MRS: MRS is "
+                              "the Medium-Resolution Spectrometer of the "
+                              "Mid-Infrared Imager / Spectrograph / "
+                              "Coronagraph(MISC) Instrument for the Origins "
+                              "Space Telescope (OST) concept.The instrument "
+                              "offers slit and IFU spectroscopy at a variety "
+                              "of spectral resolutions and slit-widths (0.33, "
+                              "0.55 and 1.0 arcsec).\n")
+                results.write("<GENERATOR-RANGE1>5\n")
+                results.write("<GENERATOR-RANGE2>36\n")
+                results.write("<GENERATOR-RANGEUNIT>um\n")
+                results.write("<GENERATOR-RESOLUTION>1200\n")
+                results.write("<GENERATOR-RESOLUTIONUNIT>RP\n")
+                results.write("<GENERATOR-TELESCOPE>SINGLE\n")
+                results.write("<GENERATOR-DIAMTELE>9.0\n")
+                results.write("<GENERATOR-BEAM>1\n")
+                results.write("<GENERATOR-BEAM-UNIT>diffrac\n")
+                results.write("<GENERATOR-TELESCOPE1>1\n")
+                results.write("<GENERATOR-TELESCOPE2>0.0\n")
+                results.write("<GENERATOR-TELESCOPE3>1.0\n")
+                results.write("<GENERATOR-NOISE>NEP\n")
+                results.write("<GENERATOR-NOISE1>2E-20\n")
+                results.write("<GENERATOR-NOISEOTEMP>4.5\n")
+                results.write("<GENERATOR-NOISEOEFF>0.1\n")
+                results.write("<GENERATOR-NOISEOEMIS>0.1\n")
+                results.write("<GENERATOR-NOISETIME>{}\n".format(
+                    self.exposure_time))
+                results.write("<GENERATOR-NOISEFRAMES>{}\n".format(
+                    self.exposure_count))
+                results.write("<GENERATOR-NOISEPIXELS>8\n")
+                results.write("<GENERATOR-TRANS-APPLY>N\n")
+                results.write("<GENERATOR-TRANS-SHOW>N\n")
+                results.write("<GENERATOR-TRANS>03-01\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
+                results.write("<GENERATOR-GAS-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-STELLAR>Y\n")
+                results.write("<GENERATOR-RADUNITS>{}\n".format(
                     self.rad_units))
 
             elif self.scope == "ALMA_Band7":
                 results.write(
-                    "< GENERATOR - INSTRUMENT > ALMA_Band7: ALMA(Atacama "
-                    "Large Millimeter / submillimeter Array) is a mm / sub - "
+                    "<GENERATOR-INSTRUMENT>ALMA_Band7: ALMA(Atacama "
+                    "Large Millimeter / submillimeter Array) is a mm / sub-"
                     "mm interferometer located on the Chajnantor plateau("
-                    "Chile) at 5000 meters.High - resolution spectroscopy is "
-                    "provided in the 31 - 950 GHz via a set of ten receivers "
+                    "Chile) at 5000 meters.High-resolution spectroscopy is "
+                    "provided in the 31-950 GHz via a set of ten receivers "
                     "/ bands / frontends, combined with a versatile "
                     "correlator backend configuration.Highest spectral "
                     "resolution is 7.6 kHz, and highest spatial resolution is "
                     "10 milliarcseconds.Band-7 samples the 275-373 GHz range "
-                    "employing SIS receivers.")
-                results.write("< GENERATOR - RANGE1 > 345.7")
-                results.write("< GENERATOR - RANGE2 > 345.9")
-                results.write("< GENERATOR - RANGEUNIT > GHz")
-                results.write("< GENERATOR - RESOLUTION > 500")
-                results.write("< GENERATOR - RESOLUTIONUNIT > kHz")
-                results.write("< GENERATOR - TELESCOPE > ARRAY")
-                results.write("< GENERATOR - DIAMTELE > 12")
-                results.write("< GENERATOR - BEAM > 0.2")
-                results.write("< GENERATOR - BEAM - UNIT > arcsec")
-                results.write("< GENERATOR - TELESCOPE1 > 54")
-                results.write("< GENERATOR - TELESCOPE2 > 0.0")
-                results.write("< GENERATOR - TELESCOPE3 > 1.0")
-                results.write("< GENERATOR - NOISE > TRX")
-                results.write("< GENERATOR - NOISE1 > 147")
-                results.write("< GENERATOR - NOISE2 > 0")
-                results.write("< GENERATOR - NOISEOTEMP > 270")
-                results.write("< GENERATOR - NOISEOEFF > 0.85")
-                results.write("< GENERATOR - NOISEOEMIS > 0.05")
-                results.write("< GENERATOR - NOISETIME > 3600")
-                results.write("< GENERATOR - NOISEFRAMES > 1")
-                results.write("< GENERATOR - NOISEPIXELS > 8")
-                results.write("< GENERATOR - TRANS - APPLY > N")
-                results.write("< GENERATOR - TRANS - SHOW > Y")
-                results.write("< GENERATOR - TRANS > 02 - 01")
-                results.write("< GENERATOR - LOGRAD > N")
-                results.write("< GENERATOR - GAS - MODEL > Y")
-                results.write("< GENERATOR - CONT - MODEL > Y")
-                results.write("< GENERATOR - CONT - STELLAR > N")
-                results.write("< GENERATOR - RADUNITS > Jy")
+                    "employing SIS receivers.\n")
+                results.write("<GENERATOR-RANGE1>345.7\n")
+                results.write("<GENERATOR-RANGE2>345.9\n")
+                results.write("<GENERATOR-RANGEUNIT>GHz\n")
+                results.write("<GENERATOR-RESOLUTION>500\n")
+                results.write("<GENERATOR-RESOLUTIONUNIT>kHz\n")
+                results.write("<GENERATOR-TELESCOPE>ARRAY\n")
+                results.write("<GENERATOR-DIAMTELE>12\n")
+                results.write("<GENERATOR-BEAM>0.2\n")
+                results.write("<GENERATOR-BEAM-UNIT>arcsec\n")
+                results.write("<GENERATOR-TELESCOPE1>54\n")
+                results.write("<GENERATOR-TELESCOPE2>0.0\n")
+                results.write("<GENERATOR-TELESCOPE3>1.0\n")
+                results.write("<GENERATOR-NOISE>TRX\n")
+                results.write("<GENERATOR-NOISE1>147\n")
+                results.write("<GENERATOR-NOISE2>0\n")
+                results.write("<GENERATOR-NOISEOTEMP>270\n")
+                results.write("<GENERATOR-NOISEOEFF>0.85\n")
+                results.write("<GENERATOR-NOISEOEMIS>0.05\n")
+                results.write("<GENERATOR-NOISETIME>{}\n".format(
+                    self.exposure_time))
+                results.write("<GENERATOR-NOISEFRAMES>{}\n".format(
+                    self.exposure_count))
+                results.write("<GENERATOR-NOISEPIXELS>8\n")
+                results.write("<GENERATOR-TRANS-APPLY>N\n")
+                results.write("<GENERATOR-TRANS-SHOW>Y\n")
+                results.write("<GENERATOR-TRANS>02-01\n")
+                results.write("<GENERATOR-LOGRAD>N\n")
+                results.write("<GENERATOR-GAS-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-MODEL>Y\n")
+                results.write("<GENERATOR-CONT-STELLAR>N\n")
+                results.write("<GENERATOR-RADUNITS>Jy\n")
                 results.write(
-                    "< GENERATOR - SUMMARY > Wavelengths range 345.7 - 345.9 "
+                    "<GENERATOR-SUMMARY>Wavelengths range 345.7-345.9 "
                     "GHz with a resolution of 500 kHz.Molecular "
                     "radiative-transfer enabled; Continuum flux module "
-                    "enabled; Interferometric observations;")
+                    "enabled; Interferometric observations;\n")
 
             else:
                 print("Scope input {} not understood. Only JWST instruments, "
@@ -1139,7 +1220,7 @@ class PSG(object):
                       .format(self.scope))
 
             # ATMOSPHERE
-            results.write("<ATMOSPHERE-DESCRIPTION>{} - CU Boulder GCM (Eric "
+            results.write("<ATMOSPHERE-DESCRIPTION>{}-CU Boulder GCM (Eric "
                           "Wolf)\n".format(self.planet_data["Name"]))
             results.write("<ATMOSPHERE-STRUCTURE>Equilibrium\n")
             results.write("<ATMOSPHERE-WEIGHT>{}\n".format(
@@ -1185,7 +1266,7 @@ class PSG(object):
             results.write("<SURFACE-ALBEDO>{}\n".format(
                 self.planet_data["Albedo"]))
             results.write("<SURFACE-EMISSIVITY>{}\n".format(
-                1 - self.planet_data["Albedo"]))
+                1-self.planet_data["Albedo"]))
             print("    Successfully created PSG Config file from GCM results"
                   " for {}".format(self.planet_data["Name"]))
             print("    The file's name is {}".format(self._psginput_name))
@@ -1202,7 +1283,7 @@ class PSG(object):
         alloutputname = self._psginput_name.split("psginput.txt")[
                             0] + "psgoutput_all.txt"
         filestem = self._psginput_name.split("psginput.txt")[0] + "psgoutput_"
-        print("Sending to PSG")
+        print("    Sending to PSG")
         if run:
             command = "curl -d type=all --data-urlencode file@{} " \
                       "https://psg.gsfc.nasa.gov/api.php > {}" \
@@ -1222,7 +1303,7 @@ class PSG(object):
             # print(filetail)
             # print(sections)
             self.returned_files = []
-            for _ in iter(range(sections)):
+            for _ in range(sections):
                 outname = filestem + filetail
                 self.returned_files.append(outname)
                 with open(outname, "w") as wri:
@@ -1255,24 +1336,45 @@ class PSG(object):
             name_parts[0], name_parts[1], name_parts[2])
 
         radfil = np.loadtxt(rad_file, unpack=True)
-        self.Wavelengths = radfil[0]
-        self.Total = radfil[1]
-        self.Noise = radfil[2]
-        self.Stellar = radfil[3]
-        if len(radfil) == 5:
-            self.is_transit = False
-            print("    Exoplanet was not transitting")
-            self.Thermal = radfil[4]
-        else:
+        if len(radfil) == 7:
+            # print("7 items")
             self.is_transit = True
+            self.Wavelengths = radfil[0]
+            self.Total = radfil[1]
+            self.Noise = radfil[2]
+            self.Stellar = radfil[3]
             self.Planet = radfil[4]
             self.Transit = radfil[5]
             self.Thermal = radfil[6]
+        elif len(radfil) == 6:
+            self.is_transit = True
+            self.Wavelengths = radfil[0]
+            self.Total = radfil[1]
+            self.Stellar = radfil[2]
+            self.Thermal = radfil[3]
+            self.Transit = radfil[4]
+            self.Planet = radfil[5]
+        elif len(radfil) == 4:
+            self.is_transit = False
+            self.Wavelengths = radfil[0]
+            self.Total = radfil[1]
+            self.Stellar = radfil[2]
+            self.Thermal = radfil[3]
+        else:
+            self.Wavelengths = radfil[0]
+            self.Total = radfil[1]
+            self.Noise = radfil[2]
+            self.Stellar = radfil[3]
+            self.Thermal = radfil[4]
+            print("    Exoplanet wasn't transitting")
+            self.is_transit = False
+
         self._plot_range = (self.Wavelengths.min(), self.Wavelengths.max())
 
         if os.path.isfile(self._file_stem + "_psgoutput_trn.txt"):
             trnfil = np.loadtxt(self._file_stem + "_psgoutput_trn.txt",
                                 unpack=True)
+            self.tWavelengthSpec = trnfil[0]
             self.tTotalSpec = trnfil[1]
             self.tN2Spec = trnfil[2]
             self.tCO2Spec = trnfil[3]
@@ -1287,6 +1389,7 @@ class PSG(object):
         if os.path.isfile(self._file_stem + "_psgoutput_noi.txt"):
             noi_fil = np.loadtxt(self._file_stem + "_psgoutput_noi.txt",
                                  unpack=True)
+            self.nWavelengthSpec = noi_fil[0]
             self.nTotal = noi_fil[1]
             self.nSource = noi_fil[2]
             self.nDetector = noi_fil[3]
@@ -1294,7 +1397,7 @@ class PSG(object):
             self.nBackground = noi_fil[5]
             self.nReal = np.random.normal(0, self.nTotal, len(self.nTotal))
 
-        print("Ready to Make Plots")
+        print("    Ready to Make Plots")
 
     def depth_plot(self):
         fig = plt.figure(figsize=(10, 6))
@@ -1314,7 +1417,7 @@ class PSG(object):
     def depth_height(self):
         fig = plt.figure(figsize=(10, 6))
         ax = fig.gca()
-        true_depth = -self.Transit / self.Stellar - self.planet_data["DepthEff"]
+        true_depth = -self.Transit / self.Stellar-self.planet_data["DepthEff"]
         den = (2 * self.planet_data["Radius"]
                * self.planet_data["ScaleHeight"])
         ax.step(self.Wavelengths, (true_depth * self.star_data["Radius"] ** 2
@@ -1355,7 +1458,7 @@ class PSG(object):
             valnum = (2 * 6.6261e-34 * 2.99792e8 ** 2)
             valden = wave ** 5 * (np.exp(
                 6.6261e-34 * 2.99792e8
-                / (wave * 1.38e-23 * self.star_data["Temperature"])) - 1)
+                / (wave * 1.38e-23 * self.star_data["Temperature"]))-1)
             val = valnum / valden
             val *= distfactor
             planck.append(val)
@@ -1766,13 +1869,13 @@ class PSGCompared(object):
                 plt.annotate(
                     "{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(sig[2630:2634])),
                     (
-                        np.max(self.WavelengthSpec) - 3.8,
-                        np.mean(sig[2630:2634]) - 6),
+                        np.max(self.WavelengthSpec)-3.8,
+                        np.mean(sig[2630:2634])-6),
                     fontsize=16)
         ax.set_title(r"\huge Transit Depths for 1 bar N$_{2}$ Planet with Line "
                      r"at CO$_{2}$ 15\si{\micro \meter} Peak")
         plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
-        ax.set_xlim(np.min(self.WavelengthSpec) - 2,
+        ax.set_xlim(np.min(self.WavelengthSpec)-2,
                     np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
         leg = ax.legend(loc=2, fontsize=15)
@@ -1802,12 +1905,12 @@ class PSGCompared(object):
                     plt.axhline(np.mean(sig[2630:2634]), c=self.colors[i])
                     plt.annotate("{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(
                         sig[2630:2634])),
-                                 (np.max(self.WavelengthSpec) - 3.8,
-                                  np.mean(sig[2630:2634]) - 8), fontsize=16)
+                                 (np.max(self.WavelengthSpec)-3.8,
+                                  np.mean(sig[2630:2634])-8), fontsize=16)
         ax.set_title(r"\huge Transit Depths for 0 bar N$_{2}$ Planet with Line "
                      "at CO$_{2}$ 15\si{\micro \meter} Peak")
         plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
-        ax.set_xlim(np.min(self.WavelengthSpec) - 2,
+        ax.set_xlim(np.min(self.WavelengthSpec)-2,
                     np.max(self.WavelengthSpec) + 2)
         plt.set_ylabel("{Signal (ppm)", fontsize=20)
         leg = ax.legend(loc=2, fontsize=15)
