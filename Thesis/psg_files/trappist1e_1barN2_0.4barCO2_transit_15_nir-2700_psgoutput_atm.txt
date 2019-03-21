@@ -1,0 +1,20 @@
+# ------------------------------------------------------------------------
+# Atmospheric radiances synthesized with PUMAS (Villanueva et al. 2018, Smith et al. 2009, Edwards 1992)
+# Molecular abundance atmprofile: TRAPPIST-1 e-CU Boulder GCM (Eric Wolf)
+# Molecules considered: N2,CO2,H2O
+# Molecular sources: HIT[22],HIT[2],HIT[1]
+# Molecular abundances: 1,1,1
+# Molecular abundance units: scl,scl,scl
+# Rayleigh scattering included
+# ------------------------------------------------------------------------
+# Wave/freq TRAPPIST-1-e
+1.000000000e+00  9.42890e-10
+1.100000000e+00  9.59449e-10
+1.200000000e+00  8.95127e-10
+1.300000000e+00  8.26530e-10
+1.400000000e+00  5.23035e-10
+1.500000000e+00  4.95339e-10
+1.600000000e+00  4.50808e-10
+1.700000000e+00  5.19899e-10
+1.800000000e+00  3.80816e-10
+1.900000000e+00  2.86564e-10

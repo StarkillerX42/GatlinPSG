@@ -1,0 +1,30 @@
+# ------------------------------------------------------------------------
+# NASA-GSFC Planetary Spectrum Generator (PSG, Villanueva et al. 2018)
+# Atmospheric transmittance spectrum synthesized with PUMAS (Villanueva et al. 2018, Smith et al. 2009, Edwards 1992)
+# Synthesized on Sun Mar 10 05:55:56 2019
+# Molecular abundance atmprofile: TRAPPIST-1 e-CU Boulder GCM (Eric Wolf)
+# Molecules considered: N2,CO2,H2O
+# Molecular sources: HIT[22],HIT[2],HIT[1]
+# Molecular abundances: 1,1,1
+# Molecular abundance units: scl,scl,scl
+# Rayleigh scattering included
+# ------------------------------------------------------------------------
+# Aerosols considered: Cloud,WaterIce
+# Aerosols sources: White_GSFC[reff=1.0um 0.10-1000000.00um],CRISM_Wolff[reff=2.0um 0.31-99.57um]
+# Aerosols opacities: 1,1
+# Aerosols opacity units: scl,scl
+# Aerosols sizes: 10,55.351
+# Aerosols size units: um,um
+# ------------------------------------------------------------------------
+# Spectral unit: Wavelength [um]
+# Wave/freq Total N2 CO2 H2O Cloud WaterIce Rayleigh
+1.000000000e+00  0.00000  1.00000  0.99220  0.68043  0.00000  0.00000  0.98198
+1.100000000e+00  0.00000  1.00000  0.97368  0.52998  0.00000  0.00000  0.98772
+1.200000000e+00  0.00000  1.00000  0.81211  0.57578  0.00000  0.00000  0.99131
+1.300000000e+00  0.00000  1.00000  0.87157  0.62950  0.00000  0.00000  0.99369
+1.400000000e+00 -0.00000  1.00000  0.80668 -0.00551  0.00000  0.00000  0.99531
+1.500000000e+00  0.00000  1.00000  0.60623  0.33881  0.00000  0.00000  0.99644
+1.600000000e+00  0.00000  1.00000  0.33825  0.97416  0.00000  0.00000  0.99725
+1.700000000e+00  0.00000  1.00000  0.83128  0.84395  0.00000  0.00000  0.99784
+1.800000000e+00  0.00000  1.00000  0.97103  0.15361  0.00000  0.00000  0.99828
+1.900000000e+00 -0.00000  1.00000  0.58538 -0.00128  0.00000  0.00000  0.99862

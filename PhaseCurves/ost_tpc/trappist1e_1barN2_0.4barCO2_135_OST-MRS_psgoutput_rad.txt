@@ -1,0 +1,26 @@
+# ------------------------------------------------------------------------
+# Radiance spectrum
+# NASA-GSFC Planetary Spectrum Generator (PSG) (Villanueva et al. 2018)
+# Synthesized on Thu Oct 11 17:10:12 2018
+# ------------------------------------------------------------------------
+# Atmospheric radiances synthesized with PUMAS (Villanueva et al. 2018, Smith et al. 2009, Edwards 1992)
+# Molecular abundance atmprofile: TRAPPIST-1 e-CU Boulder GCM (Eric Wolf)
+# Molecules considered: N2,CO2,H2O
+# Molecular sources: HIT[22],HIT[2],HIT[1]
+# Molecular abundances: 1,1,1
+# Molecular abundance units: scl,scl,scl
+# Rayleigh scattering included
+# ------------------------------------------------------------------------
+# Spectral unit: Wavelength [um]
+# Radiance unit: Spectral radiance [W/sr/m2/um]
+# Wave/freq Total Stellar TRAPPIST-1-e
+1.000000000e+00  4.90359e-03  4.90359e-03  7.51225e-11
+1.100000000e+00  5.02529e-03  5.02529e-03  7.63275e-11
+1.200000000e+00  4.78714e-03  4.78714e-03  7.09950e-11
+1.300000000e+00  4.52775e-03  4.52775e-03  6.55597e-11
+1.400000000e+00  2.91601e-03  2.91601e-03  4.18449e-11
+1.500000000e+00  2.68294e-03  2.68294e-03  3.92083e-11
+1.600000000e+00  2.91402e-03  2.91402e-03  3.54397e-11
+1.700000000e+00  2.88207e-03  2.88207e-03  4.11432e-11
+1.800000000e+00  1.93353e-03  1.93353e-03  3.04266e-11
+1.900000000e+00  1.64505e-03  1.64505e-03  2.29323e-11
