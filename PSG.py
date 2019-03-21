@@ -179,6 +179,15 @@ class PSG(object):
             self._file_dir.mkdir()
 
     def fetch_archive(self, is_earth: bool = False):
+        """This function fetches an archive from the NASA exoplanet archive
+        which is then used in later steps. It only works in the planet name
+        provided when the class is initialized matches an item in the archive.
+
+        Arguments:
+            is_earth: (bool) Whether or not this model used is Earth-like, this
+            will replace the values found in the exoplanet archive like mass and
+             radius with Earth values.
+        """
         self.is_earth = is_earth
         exoplanets = self._file_dir.joinpath("exoplanets.csv")
         if not exoplanets.is_file():
@@ -284,10 +293,18 @@ class PSG(object):
                                            " please specify star type:")
         print("    Exoplanet Archive fetched. planet_data and star_data filled")
 
-    def from_cdf(self, cdf_file: str, phase=180, is_transit=True):
+    def from_cdf(self, cdf_file, phase=180, is_transit=True):
         """This function imports an atmosphere profile from a netcdf file. If
         a netcdf file isn't available, simply specify the PSG attribute
-        self.cdf_file before running calculate."""
+        self.cdf_file before running calculate.
+
+        Args:
+            cdf_file: (path-like) The location of a netcdf file to be used
+            phase: (number) The orbital phase where 180 is a transit and 0 is
+                an occultation. In degrees.
+            is_transit: (bool) Whether or not you want the PSG pipeline to
+            consider your input as a transit. This may be useful to promote
+            continuity for thermal phase curves when phase is close to 180"""
 
         self.phase = phase
         self.cdf_file = Path(cdf_file)
@@ -505,11 +522,17 @@ class PSG(object):
 
     def calculate(self, atmosphere_ceiling=0, n_uplayers: int = 0):
 
-        """See PSG parent class docstring for details
-        Steps done here:
+        """
         1. Reads model file
         2. Converts to PSG units
-        3. Adds layers to TOA"""
+        3. Adds layers to TOA
+
+        Args:
+            atmosphere_ceiling: (float) The pressure in bars of the top
+                of the atmosphere. Recommend 1e-6
+            n_uplayers: (int) The number of layers to add to the atmosphere.
+                Recommend 7
+        """
 
         # GCM Inputs
         # TODO Integrate pathlib support beyond here
@@ -596,7 +619,9 @@ class PSG(object):
 
     def zero_atmosphere(self):
         """This is an optional method that zeros out the atmosphere for
-        background calculations"""
+        background calculations. It does not work reliably. This function
+        should be skipped for normal operations, although it may serve as a
+        template for removing a particular atmospheric species such as CO2"""
         # self.atmosphere["Pressure"] *= 0
         # self.atmosphere["Temperature"] *= 0
         self.atmosphere["N2"] *= 0
@@ -611,7 +636,19 @@ class PSG(object):
 
     def write(self, scope: str = "MIRI-MRS", exposure_time=16,
               exposure_count: int = 110, rad_units: str = "rel"):
-        """Writes a PSG input file. See parent class for details."""
+        """Writes a PSG input file using parameters defined in previous methods.
+
+        Args:
+            scope: The name of the scope, see global varaible psg_scopes for a
+                list of supported scopes
+            exposure_time: (number) The length of a single exposure, used for
+                noise calculations only.
+            exposure_count: (int) The number of exposures taken, used for noise
+                calculations only.
+            rad_units: (str) The desired units of the output, for a list of
+                possible inputs, see global varaible rad_unit_types. I recommend
+                rel, rkm, and Wsrm2um
+        """
         self.scope = scope
         self.exposure_time = exposure_time
         self.exposure_count = exposure_count
@@ -1305,13 +1342,14 @@ class PSG(object):
         current directory.
 
         Arguments: keep_files: a tuple of 3 letter strings which can include:
-        trn, lyr, rad, noi, err, cfg, atm, log, str
+            trn, lyr, rad, noi, err, cfg, atm, log, str
         run: (bool) of whether or not you actually want to send it to the PSG.
             You can set this to false if you have previously made files with
             correct names
         key: If you want to run more than a limited amount of pings to the PSG,
             you may need a key. The PSG will kick you off if you've accessed it
-            too many times. The key must be given by Geronimo Villanueva"""
+            too many times. The key must be given by Geronimo Villanueva
+        """
         # Cumbersome giant file of everything
         alloutputname = self._psginput_name.split("psginput.txt")[
                             0] + "psgoutput_all.txt"
@@ -1368,11 +1406,22 @@ class PSG(object):
                 os.system("rm -v {}".format(fil))
 
     def plot_setup(self):
+        """This takes the results from the PSG and parses them to create arrays
+        that can easily be accessed for analysis from the PSG parent object.
+        It takes no arguments, but it makes available x.Wavelengths, x.Total,
+        etc. Variables beginning with n are noise variables. Variables beginning
+        with t are transmission variables (atmospheric transparency between 0
+        and 1.
+
+        """
         rad_file = None
         # print(self.returned_files)
         for fil in self.returned_files:
             if "rad" in fil:
                 rad_file = fil
+        if rad_file is None:
+            raise Exception("No radfile returned. The PSG likely lost"
+                            " connection")
         self._file_stem = rad_file.split("_psg")[0]
         if ("/" in self._file_stem) or ("\\" in self._file_stem):
             self._file_stem = self._file_stem.replace("\\", "/")
