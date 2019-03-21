@@ -7,10 +7,12 @@ from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
-import starcoder42 as s
+from pathlib import Path
+# import starcoder42 as s
 warnings.filterwarnings("ignore")
 import pandexo.engine.justdoit as jdi
-assert sys.version >= "3.6", "Only runs on Python 3.6 or higher"
+assert sys.version_info.major >= 3, "Only runs on Python 3.6 or higher"
+assert sys.version_info.minor >= 6, "Only runs on Python 3.6 or higher"
 
 __author__ = "Dylan_Gatlin"
 __version__ = 3.7
@@ -126,6 +128,9 @@ class PSG(object):
         self.profile_file = None
         self.cdf_atmosphere = None
         self.netcdf = None
+        self.lat_weight = None
+        self.lon_weight = None
+        self.phase_mask = None
         self.mask = None
 
         # PSG Variables
@@ -169,14 +174,17 @@ class PSG(object):
         self.pandexo_result = None
 
         print(f"Starting PSG for {planet_name}")
+        self._file_dir = Path("./psg_files")
+        if not self._file_dir.is_dir():
+            self._file_dir.mkdir()
 
     def fetch_archive(self, is_earth: bool = False):
         self.is_earth = is_earth
-
-        if not os.path.isfile("exoplanets.csv"):
+        exoplanets = self._file_dir.joinpath("exoplanets.csv")
+        if not exoplanets.is_file():
             need_file = True
         else:
-            st = os.stat("exoplanets.csv")
+            st = os.stat(exoplanets)
             age = time.time()-st.st_mtime
             if age > (3600 * 24 * 2.0):
                 need_file = True
@@ -193,7 +201,7 @@ class PSG(object):
                              "st_dist,st_optmag,pl_insol,st_metfe,st_logg"
                              "&format=csv")
             lines = r.text[2:].splitlines()
-            with open("exoplanets.csv", "w") as fil:
+            with open(exoplanets.absolute(), "w") as fil:
                 for line in lines:
                     fil.write(line + "\n")
         # Extracts necessary details about the exoplanet from NASA"s API
@@ -203,8 +211,8 @@ class PSG(object):
          star_temp, star_srad, star_velocity,
          star_distance, star_magnitude,
          insolation, metallicity, star_gravity) = [None] * 14
-        exoplanets = np.loadtxt("exoplanets.csv", delimiter=",", skiprows=1,
-                                dtype=np.str, comments="'")
+        exoplanets = np.loadtxt(exoplanets.absolute(), delimiter=",",
+                                skiprows=1, dtype=np.str, comments="'")
         if sum(exoplanets[:, 0] == self.planet_name) == 1:
             line = exoplanets[exoplanets[:, 0] == self.planet_name][0]
             (planet_name, planet_emass, planet_erad,
@@ -276,13 +284,17 @@ class PSG(object):
                                            " please specify star type:")
         print("    Exoplanet Archive fetched. planet_data and star_data filled")
 
-    def from_cdf(self, cdf_file: str, phase=180):
+    def from_cdf(self, cdf_file: str, phase=180, is_transit=True):
         """This function imports an atmosphere profile from a netcdf file. If
         a netcdf file isn't available, simply specify the PSG attribute
         self.cdf_file before running calculate."""
 
         self.phase = phase
-        self.cdf_file = cdf_file
+        self.cdf_file = Path(cdf_file)
+        self.is_transit = is_transit
+        # print(self.cdf_file.absolute())
+        self.netcdf = Dataset(cdf_file)
+        # print(self.netcdf)
         print("    Accessing netCDF contents")
 
         # noinspection PyShadowingNames
@@ -314,12 +326,13 @@ class PSG(object):
             t = cdf["T"][0]
             hyam = cdf["hyam"][:]
             hybm = cdf["hybm"][:]
-            r = 8.314 / molar_mass
+            r = 8.3144 / molar_mass
             z = np.zeros((len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])+1))
-            iz = z[:]
+            iz = np.zeros((len(cdf["lat"]), len(cdf["lon"]), len(cdf["lev"])+1))
             for i, lat in enumerate(cdf["lat"][:]):
                 for j, lon in enumerate(cdf["lon"]):
-                    for k in iter(range(len(cdf["lev"]), 0, -1)):
+                    for k in range(len(cdf["lev"]), 0, -1):
+                        # print(k)
                         p1 = hyai[k] * p0 + hybi[k] * ps[i, j]
                         p2 = hyai[k-1] * p0 + hybi[k-1] * ps[i, j]
                         delta_z = r * t[k-1, i, j] / g * np.log(p1 / p2)
@@ -329,16 +342,18 @@ class PSG(object):
                         z[i, j, k-1] = iz[i, j, k] + z_scale
             return z, iz
 
-        self.netcdf = Dataset(cdf_file)
-        long = (180-phase) % 360  # Longitude is opposite of PSG's phase
-        # conventions, long refers to the longitude of the cdf file, phase
-        # refers to the orbital phase in PSG. Transit is for phase of 180,
-        # but it grabs from the terminator at 90 and 270. For non-transits,
-        # the whole earth-facing side is averaged.
-        if 177 <= phase <= 183:  # For transits, the terminator is selected
-            self.is_transit = True
-            left_ang = (long - 90.) % 360.  # Use % to account for sub-zero angs
-            right_ang = (long + 90.) % 360.
+        earth_facing_long = (180-phase) % 360  # Longitude is opposite of PSG's
+        # phase conventions, earth_facing_long refers to the longitude of the
+        # cdf file, phase refers to the orbital phase in PSG. Transit is for
+        # phase of 180, but it grabs from the terminator at 90 and 270. For
+        # non-transits, the whole earth-facing side is averaged.
+        if self.is_transit:
+            if (phase < 175) or (phase > 185):
+                print("    is_transit is True, but was likely not transitting "
+                      "because the phase is not close to 180")
+            # Use % to account for sub-zero angs
+            left_ang = (earth_facing_long - 90.) % 360.
+            right_ang = (earth_facing_long + 90.) % 360.
             left_bool = ((left_ang-5. <= self.netcdf["lon"][:])
                          & (self.netcdf["lon"][:] <= left_ang + 5.))
             right_bool = ((right_ang-5. <= self.netcdf["lon"][:])
@@ -346,9 +361,12 @@ class PSG(object):
             phase_mask = left_bool ^ right_bool
             lon_weight = np.ones(len(self.netcdf["lon"]))  # If it's a transit,
             # we need a different longitude weight than a disk average
+            lat_weight = np.ones(len(self.netcdf["lat"][:]))
+            if phase != 180:
+                print("    Phase is not 180, but is_transit is True")
         else:  # Else, the Earth-facing side is selected
-            left_ang = (long-90.) % 360.
-            right_ang = (long+90.) % 360.
+            left_ang = (earth_facing_long-90.) % 360.
+            right_ang = (earth_facing_long+90.) % 360.
             # print(left_ang, right_ang)
             if left_ang < right_ang:
                 phase_mask = ((left_ang <= self.netcdf["lon"][:])
@@ -357,7 +375,8 @@ class PSG(object):
                 phase_mask = ((left_ang <= self.netcdf["lon"][:])
                               ^ (right_ang >= self.netcdf["lon"][:]))
             lon_weight = np.cos(np.deg2rad(self.netcdf["lon"][:] + phase + 180))
-        lat_weight = np.round(np.cos(np.deg2rad(self.netcdf["lat"][:]))**2, 5)
+            lat_weight = np.round(
+                np.cos(np.deg2rad(self.netcdf["lat"][:])) ** 2, 5)
         weight_grid = np.outer(lat_weight, lon_weight)
         self.lon_weight = lon_weight
         self.lat_weight = lat_weight
@@ -420,6 +439,8 @@ class PSG(object):
         heights, iheights = hybrid2height(self.netcdf,
                                           self.planet_data["Gravity"],
                                           m_weight_dry)
+        # print(heights, iheights)
+
         pressures, ipressures = hybrid2pressure(self.netcdf)
         p_pro = np.average(np.average(pressures[:, phase_mask], axis=0,
                                       weights=lat_weight), axis=0) / 100 / 1000
@@ -438,14 +459,16 @@ class PSG(object):
                                            "N2", "CO2", "CH4", "H2O",
                                            "LiquidCloud", "IceCloud",
                                            "LiquidCloudSize", "IceCloudSize"])
+        stem_str = str(self._file_dir.absolute().joinpath(
+            self.cdf_file.name)).split("_aqua")[0]
         if self.is_transit:
-            self.profile_file = cdf_file.split(".cam")[0] + "_terminator.txt"
+            self.profile_file = Path(stem_str + "_transit.txt").absolute()
         else:
-            self.profile_file = (cdf_file.split(".cam")[0] + "_"
-                                 + str(phase) + "_pro.txt")
+            self.profile_file = Path(stem_str + "_{:.0f}_pro.txt".format(phase))
+        # print(self.profile_file)
         with open(self.profile_file, "w") as out:
             out.write("# Simulation:  {}\n".format(
-                cdf_file.split(".cam")[0]))
+                str(self.cdf_file).split(".cam")[0]))
             out.write("# {}, {:.2f}% N2, {:.2f}% CO2, {:.2f}% CH4\n".format(
                 self.planet_name, n2_vmr, co2_vmr, ch4_vmr))
             out.write("# Mean Vertical Profile\n")
@@ -477,7 +500,8 @@ class PSG(object):
                         lvl["Temps"], lvl["N2"], lvl["CO2"], lvl["CH4"],
                         lvl["H2O"], lvl["LiquidCloud"], lvl["IceCloud"],
                         lvl["LiquidCloudSize"], lvl["IceCloudSize"]))
-        print(f"    Output file written to {self.profile_file}")
+        print("    Output file written to "
+              f"{self.profile_file.relative_to(Path('.').absolute())}")
 
     def calculate(self, atmosphere_ceiling=0, n_uplayers: int = 0):
 
@@ -488,6 +512,7 @@ class PSG(object):
         3. Adds layers to TOA"""
 
         # GCM Inputs
+        # TODO Integrate pathlib support beyond here
         with open(self.profile_file, "r") as fp:
             lines = fp.readlines()
             line = lines[6]
@@ -537,11 +562,11 @@ class PSG(object):
         self.planet_data["EffectiveTemp"] = (self.planet_data["Insolation"]
                                              * (1-self.planet_data["Albedo"])
                                              / (4 * 5.67e-8)) ** 0.25
-        self.planet_data["ScaleHeight"] = (8.3144598
-                                           * self.planet_data[
-                                               "SurfaceTemperature"]
-                                           / (self.planet_data["MWeightDry"]
-                                              * self.planet_data["Gravity"]))
+        self.planet_data["ScaleHeight"] = (
+                8.3144598
+                * np.mean(self.atmosphere["Temperature"])
+                / self.planet_data["MWeightDry"]
+                / self.planet_data["Gravity"])
 
         # Adding layers
         if atmosphere_ceiling != 0:
@@ -572,17 +597,17 @@ class PSG(object):
     def zero_atmosphere(self):
         """This is an optional method that zeros out the atmosphere for
         background calculations"""
-        self.atmosphere["Pressure"] *= 0
-        self.atmosphere["Temperature"] *= 0
+        # self.atmosphere["Pressure"] *= 0
+        # self.atmosphere["Temperature"] *= 0
         self.atmosphere["N2"] *= 0
         self.atmosphere["CO2"] *= 0
         self.atmosphere["H2O"] *= 0
         self.atmosphere["LiquidCloud"] *= 0
         self.atmosphere["IceCloud"] *= 0
-        self.planet_data["MWeightTotal"] = 0
-        self.planet_data["IceCloudAbundance"] = 0
-        self.planet_data["LiquidCloudAbundance"] = 0
-        self.planet_data["SurfacePressure"] = 0
+        # self.planet_data["MWeightTotal"] = 0
+        # self.planet_data["IceCloudAbundance"] = 0
+        # self.planet_data["LiquidCloudAbundance"] = 0
+        # self.planet_data["SurfacePressure"] = 0
 
     def write(self, scope: str = "MIRI-MRS", exposure_time=16,
               exposure_count: int = 110, rad_units: str = "rel"):
@@ -592,6 +617,8 @@ class PSG(object):
         self.exposure_count = exposure_count
         self.rad_units = rad_units
         self._psginput_name = ""
+        # print(self.profile_file)
+        self.profile_file = str(self.profile_file)
         if "aqua" in self.profile_file:
             self._psginput_name += self.profile_file.split("_aqua")[0]
             end = "_psginput.txt"
@@ -1272,28 +1299,43 @@ class PSG(object):
             print("    The file's name is {}".format(self._psginput_name))
 
     def send(self, keep_files=("trn", "lyr", "rad", "noi", "log", "atm", "err"),
-             run=True):
+             run=True, key=None):
         """This function send the the file cdf_file to the NASA GSFC PSG for
         analysis It will not return anything, but will write files in the 
         current directory.
 
         Arguments: keep_files: a tuple of 3 letter strings which can include:
-        trn, lyr, rad, noi, err, cfg, atm, log, str"""
+        trn, lyr, rad, noi, err, cfg, atm, log, str
+        run: (bool) of whether or not you actually want to send it to the PSG.
+            You can set this to false if you have previously made files with
+            correct names
+        key: If you want to run more than a limited amount of pings to the PSG,
+            you may need a key. The PSG will kick you off if you've accessed it
+            too many times. The key must be given by Geronimo Villanueva"""
         # Cumbersome giant file of everything
         alloutputname = self._psginput_name.split("psginput.txt")[
                             0] + "psgoutput_all.txt"
         filestem = self._psginput_name.split("psginput.txt")[0] + "psgoutput_"
         print("    Sending to PSG")
         if run:
-            command = "curl -d type=all --data-urlencode file@{} " \
-                      "https://psg.gsfc.nasa.gov/api.php > {}" \
-                .format(self._psginput_name, alloutputname)
+            if key:
+                command = (f"curl -d key={key} -d type=all --data-urlencode "
+                           f"--speed-time 30 file@{self._psginput_name} "
+                           f"https://psg.gsfc.nasa.gov/api.php > "
+                           f"{alloutputname}")
+            else:
+                command = f"curl -d type=all --data-urlencode " \
+                          f"file@{self._psginput_name} " \
+                          f"https://psg.gsfc.nasa.gov/api.php > {alloutputname}"
             # print("    {}".format(command))
             os.system(command)
         print("    Successfully connected to NASA PSG")
         with open(alloutputname, "r+") as allfile:
             sections = 0
             for i, line in enumerate(allfile):
+                if i == 0:
+                    if "Your other API call is still running" in line:
+                        raise Exception("PSG is hung up on a previous run")
                 if "results_" in line:
                     sections += 1
             if sections == 0:  # Happens if the PSG is down or file is incorrect
@@ -1327,14 +1369,16 @@ class PSG(object):
 
     def plot_setup(self):
         rad_file = None
+        # print(self.returned_files)
         for fil in self.returned_files:
             if "rad" in fil:
                 rad_file = fil
         self._file_stem = rad_file.split("_psg")[0]
+        if ("/" in self._file_stem) or ("\\" in self._file_stem):
+            self._file_stem = self._file_stem.replace("\\", "/")
+            self._file_stem = self._file_stem.split("/")[-1]
         name_parts = self._file_stem.split("_")
-        self._title_stem = "{} {} {}".format(
-            name_parts[0], name_parts[1], name_parts[2])
-
+        self._title_stem = " ".join(name_parts)
         radfil = np.loadtxt(rad_file, unpack=True)
         if len(radfil) == 7:
             # print("7 items")
@@ -1825,141 +1869,3 @@ class PSG(object):
         print(output)
         self.pandexo_result = jdi.run_pandexo(exo_dict, inst_dict,
                                               output_path=output)
-
-
-class PSGCompared(object):
-    """This function plots all _rad PSG outputs together to compare their
-    peaks and features. The most useful part is the depth combined plots,
-    which can give you a sense of signal strength."""
-
-    def __init__(self, radfiles):
-        super(PSGCompared, self).__init__()
-        import glob
-        self.radfiles = glob.glob(radfiles)
-        self.colors = ["r", "orange", "green", "yellowgreen", "orange",
-                       "yellowgreen", "g", "b", "indigo", "m", "r",
-                       "cyan", "blue", "violet"]
-        self.alphas = [0.7, 0.9, 0.7, 0.9, 0.9, 0.9, 0.7, 0.5, 0.5, 0.7, 0.6,
-                       0.6, 0.4, 0.6]
-        self.files = glob.glob(radfiles)
-        self.outputfile = self.files[0].split("_")[0]
-
-        self.WavelengthSpec = None
-
-    def N2CombPlot(self):
-        fig = plt.figure(figsize=(12, 15))
-        plt.tick_params(axis="both", which="both", bottom="on", top="off",
-                        labelbottom="on", left="on", right="off",
-                        labelleft="on", labelsize=16, length=8, width=2)
-        for i, file in enumerate(self.radfiles):
-            if "barN2" in file:
-                if "barCO2" in self.files[i]:
-                    C = float(self.files[i].split("_")[2].split("barCO2")[0])
-                else:
-                    C = 0
-                contents = np.loadtxt(self.files[i], unpack=True, skiprows=16)
-                self.WavelengthSpec = contents[0]
-                Transit = contents[5]
-                Stellar = contents[3]
-                sig = -Transit / Stellar * 1.0e6
-                ax.step(self.WavelengthSpec, sig, c=self.colors[i],
-                        linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
-                        where="post")
-                plt.axhline(np.mean(sig[2630:2634]), c=self.colors[i])
-                plt.annotate(
-                    "{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(sig[2630:2634])),
-                    (
-                        np.max(self.WavelengthSpec)-3.8,
-                        np.mean(sig[2630:2634])-6),
-                    fontsize=16)
-        ax.set_title(r"\huge Transit Depths for 1 bar N$_{2}$ Planet with Line "
-                     r"at CO$_{2}$ 15\si{\micro \meter} Peak")
-        plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
-        ax.set_xlim(np.min(self.WavelengthSpec)-2,
-                    np.max(self.WavelengthSpec) + 2)
-        plt.set_ylabel("{Signal (ppm)", fontsize=20)
-        leg = ax.legend(loc=2, fontsize=15)
-        for label in leg.get_lines():
-            label.set_linewidth(4)
-            ax = plt.axes()
-            ax.xaxis.grid(True)
-        fig.savefig(self.outputfile + "N2CombinedPlots.png", dpi=300)
-
-    def NoN2CombPlot(self):
-        fig = plt.figure(figsize=(12, 15))
-        plt.tick_params(axis="both", which="both", bottom="on", top="off",
-                        labelbottom="on", left="on", right="off",
-                        labelleft="on", labelsize=16, length=8, width=2)
-        for i, file in enumerate(self.radfiles):
-            if "barN2" not in file:
-                if "barCO2" in file:
-                    C = float(file.split("barCO2")[0].split("_")[-1])
-                    contents = np.loadtxt(file, unpack=True, skiprows=16)
-                    self.WavelengthSpec = contents[0]
-                    Transit = contents[5]
-                    Stellar = contents[3]
-                    sig = -Transit / Stellar * 1.0e6
-                    ax.step(self.WavelengthSpec, sig, c=self.colors[i],
-                            linewidth=0.5, label="{0:6.4f} Bar CO2".format(C),
-                            where="post")
-                    plt.axhline(np.mean(sig[2630:2634]), c=self.colors[i])
-                    plt.annotate("{0:6.4f} Bar: {1:4.0f}".format(C, np.mean(
-                        sig[2630:2634])),
-                                 (np.max(self.WavelengthSpec)-3.8,
-                                  np.mean(sig[2630:2634])-8), fontsize=16)
-        ax.set_title(r"\huge Transit Depths for 0 bar N$_{2}$ Planet with Line "
-                     "at CO$_{2}$ 15\si{\micro \meter} Peak")
-        plt.xlabel(r"Wavelengths ($\si{\micro \meter}$)", fontsize=18)
-        ax.set_xlim(np.min(self.WavelengthSpec)-2,
-                    np.max(self.WavelengthSpec) + 2)
-        plt.set_ylabel("{Signal (ppm)", fontsize=20)
-        leg = ax.legend(loc=2, fontsize=15)
-        for label in leg.get_lines():
-            label.set_linewidth(4)
-            ax = plt.axes()
-            ax.xaxis.grid(True)
-        fig.savefig(self.outputfile + "NoN2CombinedPlots.png", dpi=300)
-
-    def PeakCompare(self):
-        fig = plt.figure(figsize=(8, 6))
-        N2peaks = []
-        Nopeaks = []
-        Ns = []
-        Nos = []
-        for i in range(len(self.files)):
-            contents = np.loadtxt(self.files[i], unpack=True, skiprows=16)
-            self.WavelengthSpec = contents[0]
-            Transit = contents[5]
-            Stellar = contents[3]
-            Signal = -Transit / Stellar * 1.0e6
-            if "barN2" in self.files[i]:
-                N = float(self.files[i].split("_")[1].split("barN2")[0])
-                if "barCO2" in self.files[i]:
-                    C = float(self.files[i].split("_")[2].split("barCO2")[0])
-                else:
-                    C = 0
-                    Ns.append(C)
-                    N2peaks.append(np.max(Signal))
-                    if "barN2" not in self.files[i]:
-                        C = float(
-                            self.files[i].split("barCO2")[0].split("_")[-1])
-                        Nos.append(C)
-                        Nopeaks.append(np.max(Signal))
-        plt.scatter(Ns, N2peaks, c="b", s=100, label="With Nitrogen")
-        plt.scatter(Nos, Nopeaks, c="r", s=100, label="Without Nitrogen")
-        ax.set_title("Peak Transit TransitDepth")
-        plt.xlabel(r"CO$_{2}$ Abundance ($\si{\bar}$)")
-        plt.set_ylabel("Peak Signal (ppm)")
-        leg = ax.legend(loc=4)
-        """for label in leg.get_lines():
-            label.set_linewidth(4)"""
-        ax = plt.axes()
-        ax.xaxis.grid(True)
-        fig.savefig(self.outputfile + "PeakCompare.png", dpi=300)
-
-
-def PSGCompare(filename):
-    x = PSGCompared(filename)
-    x.N2CombPlot()
-    x.NoN2CombPlot()
-    x.PeakCompare()

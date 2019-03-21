@@ -8,14 +8,21 @@ Currently, psginput files are available on github, which can be used to send to 
 The PSG is a cool tool, but there are many steps which need to be completed before you put things in as inputs to the PSG, and there's a lot of work to do before you get reasonable results back, which is what this repository is for. In order to run the PSG, run the line.
 
 ```
-planet = PSG.PSG(planet_name, file_name, is_earth, astmosphere_ceiling, n_uplayers, phase)
-# Initializes the PSG
-planet.calculate(skprows)  # Computes necessary values
-planet.write(scope, exposure_time, exposure_count, rad_units)
-# Writes a file to be sent
-planet.send(run)  # Sends the file to the PSG
-planet.plot_setup()  # Prepares for plotting
-planet.<plot_function>  # Each creates a plot and writes it to a file
+# Initializes the object planet
+planet = PSG.PSG(planet_name)
+# Downloads NASA Exoplanet archive to populate variables
+planet.fetch_archive(is_earth)
+# Read the netCDF file atmosphere model
+planet.from_cdf(cdf_file, phase)
+# Add necessary values and add the upper layers
+planet.calculate(atmosphere_ceiling, n_uplayers)
+# Write a file to send to the NASA PSG
+planet.write(scope, exp_time, n_exposures, rad_units)
+# Send to the PSG
+planet.send(keep_files, run)
+# Prepare plots
+planet.plot_setup()
+planet.depth_plot()
 ```
 
 ## Running  PSG via jupyter notebook
