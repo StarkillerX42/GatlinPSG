@@ -1871,6 +1871,7 @@ class PSG(object):
         """This function creates a set instrument parameters using pandas
         This is meant to give us noise simulations to more accurately predict
         transits. Check parent class for more details"""
+        # TODO Create functional pandexo support
 
         # Create a pandexo ready transit file
         self.pand_fil = self._file_stem + "_depth.txt"
