@@ -1,6 +1,5 @@
-*.png
 *.pyc
-ALMA
-UROP
+ModelFiles
 Papers
+UROP
 __pycache__
