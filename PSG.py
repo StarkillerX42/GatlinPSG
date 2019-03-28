@@ -6,11 +6,14 @@ import astropy.units as u
 from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
-import warnings
 from pathlib import Path
+# import warnings
 # import starcoder42 as s
-warnings.filterwarnings("ignore")
-import pandexo.engine.justdoit as jdi
+# try:
+#     warnings.filterwarnings("ignore")
+#     import pandexo.engine.justdoit as jdi
+# except ImportError:
+#     pass
 assert sys.version_info.major >= 3, "Only runs on Python 3.6 or higher"
 assert sys.version_info.minor >= 6, "Only runs on Python 3.6 or higher"
 
@@ -365,9 +368,8 @@ class PSG(object):
         # phase of 180, but it grabs from the terminator at 90 and 270. For
         # non-transits, the whole earth-facing side is averaged.
         if self.is_transit:
-            if (phase < 175) or (phase > 185):
-                print("    is_transit is True, but was likely not transitting "
-                      "because the phase is not close to 180")
+            if phase != 180:
+                print("    Phase is not 180, but is_transit is True")
             # Use % to account for sub-zero angs
             left_ang = (earth_facing_long - 90.) % 360.
             right_ang = (earth_facing_long + 90.) % 360.
@@ -379,8 +381,7 @@ class PSG(object):
             lon_weight = np.ones(len(self.netcdf["lon"]))  # If it's a transit,
             # we need a different longitude weight than a disk average
             lat_weight = np.ones(len(self.netcdf["lat"][:]))
-            if phase != 180:
-                print("    Phase is not 180, but is_transit is True")
+
         else:  # Else, the Earth-facing side is selected
             left_ang = (earth_facing_long-90.) % 360.
             right_ang = (earth_facing_long+90.) % 360.
@@ -476,14 +477,15 @@ class PSG(object):
                                            "N2", "CO2", "CH4", "H2O",
                                            "LiquidCloud", "IceCloud",
                                            "LiquidCloudSize", "IceCloudSize"])
-        stem_str = str(self._file_dir.absolute().joinpath(
-            self.cdf_file.name)).split("_aqua")[0]
+
+        pro_name = self.cdf_file.name.split(".cam")[0]
         if self.is_transit:
-            self.profile_file = Path(stem_str + "_transit.txt").absolute()
+            pro_name += "_transit_pro.txt"
         else:
-            self.profile_file = Path(stem_str + "_{:.0f}_pro.txt".format(phase))
+            pro_name += f"_{phase:.0f}_pro.txt"
+        self.profile_file = self._file_dir / Path(pro_name)
         # print(self.profile_file)
-        with open(self.profile_file, "w") as out:
+        with open(self.profile_file.absolute(), "w") as out:
             out.write("# Simulation:  {}\n".format(
                 str(self.cdf_file).split(".cam")[0]))
             out.write("# {}, {:.2f}% N2, {:.2f}% CO2, {:.2f}% CH4\n".format(
@@ -517,8 +519,7 @@ class PSG(object):
                         lvl["Temps"], lvl["N2"], lvl["CO2"], lvl["CH4"],
                         lvl["H2O"], lvl["LiquidCloud"], lvl["IceCloud"],
                         lvl["LiquidCloudSize"], lvl["IceCloudSize"]))
-        print("    Output file written to "
-              f"{self.profile_file.relative_to(Path('.').absolute())}")
+        print(f"    Output file written to {self.profile_file}")
 
     def calculate(self, atmosphere_ceiling=0, n_uplayers: int = 0):
 
@@ -535,7 +536,6 @@ class PSG(object):
         """
 
         # GCM Inputs
-        # TODO Integrate pathlib support beyond here
         with open(self.profile_file, "r") as fp:
             lines = fp.readlines()
             line = lines[6]
@@ -655,24 +655,12 @@ class PSG(object):
         self.rad_units = rad_units
         self._psginput_name = ""
         # print(self.profile_file)
-        self.profile_file = str(self.profile_file)
-        if "aqua" in self.profile_file:
-            self._psginput_name += self.profile_file.split("_aqua")[0]
-            end = "_psginput.txt"
-        elif ("t" in self.profile_file
-              and "s" in self.profile_file
-              and "p" in self.profile_file):
-            self._psginput_name += self.profile_file.split(".txt")[0]
-            end = "_psginput.txt"
+        name = self.profile_file.name.split("_pro.txt")[0]
+        if self.scope == "MIRI-MRS":
+            name += "_psginput.txt"
         else:
-            print("    Assuming the file is a dry file")
-            self._psginput_name = self.profile_file.split("_dry")[0]
-            end = "_dry_psginput.txt"
-        if self.phase != 180:
-            self._psginput_name += "_" + str(self.phase)
-        if self.scope != "MIRI-MRS":
-            self._psginput_name += "_" + self.scope
-        self._psginput_name += end
+            name += f"_{self.scope}_psginput.txt"
+        self._psginput_name = self._file_dir / Path(name)
         with open(self._psginput_name, "w") as results:
 
             # OBJECT
@@ -1351,24 +1339,26 @@ class PSG(object):
             too many times. The key must be given by Geronimo Villanueva
         """
         # Cumbersome giant file of everything
-        alloutputname = self._psginput_name.split("psginput.txt")[
-                            0] + "psgoutput_all.txt"
-        filestem = self._psginput_name.split("psginput.txt")[0] + "psgoutput_"
+        output_stem = (self._psginput_name.name.split("psginput.txt")[0]
+                       + "psgoutput_")
+        all_output_name = self._file_dir / Path(output_stem + "all.txt")
         print("    Sending to PSG")
         if run:
             if key:
                 command = (f"curl -d key={key} -d type=all --data-urlencode "
-                           f"--speed-time 30 file@{self._psginput_name} "
+                           f"--speed-time 30 "
+                           f"file@{self._psginput_name.as_posix()} "
                            f"https://psg.gsfc.nasa.gov/api.php > "
-                           f"{alloutputname}")
+                           f"{all_output_name.as_posix()}")
             else:
-                command = f"curl -d type=all --data-urlencode " \
-                          f"file@{self._psginput_name} " \
-                          f"https://psg.gsfc.nasa.gov/api.php > {alloutputname}"
-            # print("    {}".format(command))
+                command = (f"curl -d type=all --data-urlencode " 
+                           f"file@{self._psginput_name.as_posix()} " 
+                           f"https://psg.gsfc.nasa.gov/api.php > " 
+                           f"{all_output_name.as_posix()}")
+            # print(f"    {command}")
             os.system(command)
         print("    Successfully connected to NASA PSG")
-        with open(alloutputname, "r+") as allfile:
+        with open(all_output_name, "r+") as allfile:
             sections = 0
             for i, line in enumerate(allfile):
                 if i == 0:
@@ -1384,7 +1374,7 @@ class PSG(object):
             # print(sections)
             self.returned_files = []
             for _ in range(sections):
-                outname = filestem + filetail
+                outname = output_stem + filetail
                 self.returned_files.append(outname)
                 with open(outname, "w") as wri:
                     line = allfile.readline()
@@ -1396,9 +1386,9 @@ class PSG(object):
                     if "results_" in line:
                         filetail = line.split("_")[1].split("\n")[0]
         print("    {} files created".format(sections))
-        if filestem + "log.txt" in self.returned_files:
+        if output_stem + "log.txt" in self.returned_files:
             print("    PSG returned an error or warning:")
-            with open(filestem + "log.txt", "r") as log:
+            with open(output_stem + "log.txt", "r") as log:
                 print(log.readline())
 
         for i, fil in enumerate(self.returned_files):

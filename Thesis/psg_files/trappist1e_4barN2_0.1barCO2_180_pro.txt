@@ -1,4 +1,4 @@
-# Simulation:  C:\Users\dgatl_000\OneDrive\College\Senior_1\Wolf\ModelFiles\trappist1e_4barN2_0.1barCO2_aqua
+# Simulation:  C:\Users\dgatl_000\OneDrive - UCB-O365\Senior_1\GatlinPSG\ModelFiles\trappist1e_4barN2_0.1barCO2_aqua
 # TRAPPIST-1 e, 0.98% N2, 0.02% CO2, 0.00% CH4
 # Mean Vertical Profile
 # Mass mixing ratios (kg/kg) relative to the moist air mass (i.e dry air mass + water vapor mass)

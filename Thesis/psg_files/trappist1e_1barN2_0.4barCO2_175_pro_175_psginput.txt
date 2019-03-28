@@ -60,7 +60,7 @@
 <GENERATOR-GAS-MODEL>Y
 <GENERATOR-CONT-MODEL>Y
 <GENERATOR-CONT-STELLAR>Y
-<GENERATOR-RADUNITS>Wsrm2um
+<GENERATOR-RADUNITS>rel
 <GENERATOR-SUMMARY>Wavelengths range 5.00-28.30 um with a resolution of 2400 RP. Molecular radiative-transfer enabled; Continuum flux module enabled;
 <GENERATOR-TRANS>02-01
 <ATMOSPHERE-DESCRIPTION>TRAPPIST-1 e-CU Boulder GCM (Eric Wolf)

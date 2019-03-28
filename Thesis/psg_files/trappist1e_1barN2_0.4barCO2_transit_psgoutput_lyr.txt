@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------------------------
 # NASA-GSFC Planetary Spectrum Generator (PSG, Villanueva et al. 2018)
 # Atmospheric layering information considered by PUMAS
-# Synthesized on Sun Mar 17 01:12:43 2019
+# Synthesized on Fri Mar 22 19:14:59 2019
 # Radiative transfer method: correlated-k (med)
 # Synthesis spectral resolution [cm-1], resolving power and computation points: 0.168098 5.001e+03 8.672e+03
 # Scattering parameters (nmax, lmax): 0 0

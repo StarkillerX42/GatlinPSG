@@ -5,6 +5,7 @@
       <option name="ignoredIdentifiers">
         <list>
           <option value="astropy.units.meter" />
+          <option value="sys" />
         </list>
       </option>
     </inspection_tool>

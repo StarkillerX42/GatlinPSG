@@ -1,7 +1,14 @@
 # GatlinPSG
 This is a project analyzing exoplanet transit spectra using Eric T. Wolf's climate models and NASA's Planetary Spectrum Generator (PSG). The generator, found at https://psg.gsfc.nasa.gov/ was made cheifly by Geronimo L. Villanueva. This project was created as a wrapper for the PSG for 3D cliamte models (as NETCDFs). This work was used to produce my honors thesis on the subject.
 
-### Permissions
+## Depencenies
+Python Standard: numpy, astropy, cartopy, scipy, matplotlib, pathlib
+
+Python special: starcoder42 (https://github.com/StarkillerX42/starcoder42)
+
+For pandexo: Pandexo, pandeia.engine, pyfftw (difficult on Windows)
+
+## Permissions
 Currently, psginput files are available on GitHub, which can be used to send to the PSG manually, but Eric's climate models are only available upon request. The PSG can still be run using the psginput.txt files, although some early steps in the pipeline will need to be run differently, see below.
 
 ## Running The PSG:

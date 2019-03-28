@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------
 # NASA-GSFC Planetary Spectrum Generator (PSG, Villanueva et al. 2018)
 # Atmospheric transmittance spectrum synthesized with PUMAS (Villanueva et al. 2018, Smith et al. 2009, Edwards 1992)
-# Synthesized on Sun Mar 17 01:12:43 2019
+# Synthesized on Fri Mar 22 19:14:59 2019
 # Molecular abundance atmprofile: TRAPPIST-1 e-CU Boulder GCM (Eric Wolf)
 # Molecules considered: N2,CO2,H2O
 # Molecular sources: HIT[22],HIT[2],HIT[1]
