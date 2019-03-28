@@ -4,59 +4,12 @@
     <option name="SCOPE_TYPE" value="3" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1cb5eaef-50f0-4e88-a49d-355639a03f00" name="Default" comment="Added consistent docstrings and readme for Thesis completion">
-      <change beforePath="$PROJECT_DIR$/.idea/GatlinPSG.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/GatlinPSG.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="1cb5eaef-50f0-4e88-a49d-355639a03f00" name="Default" comment="Pathlib fully integrated, rerun for GitHub">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CAM_to_txt.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/PSG.py" beforeDir="false" afterPath="$PROJECT_DIR$/PSG.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/StandardTransits/PSG_Shell.py" beforeDir="false" afterPath="$PROJECT_DIR$/StandardTransits/PSG_Shell.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/boulder.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/exoplanets.csv" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/exoplanets.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.25barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.25barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.5barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.5barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.9barN2_0.1barH2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_0.9barN2_0.1barH2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1.5barN2_0.1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1.5barN2_0.1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1.5barN2_0.2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1.5barN2_0.2barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_10barN2_0.2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_10barN2_0.2barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.0004barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.0004barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.01barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.01barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.2barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_0_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_0_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_0_pro_0_psgoutput_all.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_0_pro_0_psgoutput_all.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro_175_NIRSpec-2700_psginput.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro_175_NIRSpec-2700_psginput.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro_175_psginput.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_175_pro_175_psginput.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_270_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_270_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_90_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_90_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psginput.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psginput.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_all.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_all.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_lyr.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_lyr.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_noi.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_noi.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_rad.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_rad.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_trn.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_NIRSpec-2700_psgoutput_trn.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psginput.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psginput.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_all.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_all.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_lyr.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_lyr.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_noi.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_noi.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_rad.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_rad.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_trn.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_0.4barCO2_transit_psgoutput_trn.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_400ppmCO2_1.7ppmCH4_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_1barN2_400ppmCO2_1.7ppmCH4_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barN2_0.1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barN2_0.1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barN2_0.2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_2barN2_0.2barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_4barN2_0.1barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_4barN2_0.1barCO2_180_pro.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_4barN2_0.2barCO2_180_pro.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/psg_files/trappist1e_4barN2_0.2barCO2_180_pro.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Thesis/.ipynb_checkpoints/thesis_calculations-checkpoint.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/.ipynb_checkpoints/thesis_calculations-checkpoint.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Thesis/thesis_calculations.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/Thesis/thesis_calculations.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exoplanets.csv" beforeDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -64,187 +17,15 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="FUSProjectUsageTrigger">
-    <session id="-460418572">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="9" />
-          <entry key="project.open.time.14" value="2" />
-          <entry key="project.open.time.15" value="1" />
-          <entry key="project.open.time.16" value="1" />
-          <entry key="project.open.time.19" value="1" />
-          <entry key="project.open.time.23" value="1" />
-          <entry key="project.open.time.4" value="1" />
-          <entry key="project.open.time.47" value="1" />
-          <entry key="project.open.time.5" value="1" />
-          <entry key="project.open.time.7" value="1" />
-          <entry key="project.opened" value="10" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.edit">
-        <counts>
-          <entry key="Python Console" value="482" />
-          <entry key="py" value="2061" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.open">
-        <counts>
-          <entry key="gitignore" value="1" />
-          <entry key="txt" value="15" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.edit">
-        <counts>
-          <entry key="Python" value="2543" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.open">
-        <counts>
-          <entry key="PLAIN_TEXT" value="16" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.vcs.git.usages" />
-    </session>
-    <session id="1253372474">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="31" />
-          <entry key="project.open.time.0" value="2" />
-          <entry key="project.open.time.1" value="4" />
-          <entry key="project.open.time.11" value="1" />
-          <entry key="project.open.time.14" value="1" />
-          <entry key="project.open.time.16" value="2" />
-          <entry key="project.open.time.17" value="4" />
-          <entry key="project.open.time.18" value="2" />
-          <entry key="project.open.time.19" value="2" />
-          <entry key="project.open.time.2" value="1" />
-          <entry key="project.open.time.20" value="1" />
-          <entry key="project.open.time.21" value="2" />
-          <entry key="project.open.time.24" value="1" />
-          <entry key="project.open.time.25" value="1" />
-          <entry key="project.open.time.27" value="1" />
-          <entry key="project.open.time.3" value="2" />
-          <entry key="project.open.time.30" value="1" />
-          <entry key="project.open.time.31" value="1" />
-          <entry key="project.open.time.32" value="1" />
-          <entry key="project.open.time.39" value="1" />
-          <entry key="project.open.time.4" value="1" />
-          <entry key="project.open.time.43" value="1" />
-          <entry key="project.open.time.6" value="2" />
-          <entry key="project.opened" value="35" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.open">
-        <counts>
-          <entry key="csv" value="1" />
-          <entry key="md" value="3" />
-          <entry key="png" value="5" />
-          <entry key="txt" value="32" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.open">
-        <counts>
-          <entry key="CSV" value="1" />
-          <entry key="Image" value="5" />
-          <entry key="Markdown" value="3" />
-          <entry key="PLAIN_TEXT" value="32" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.edit">
-        <counts>
-          <entry key="Python Console" value="974" />
-          <entry key="gitignore" value="91" />
-          <entry key="md" value="2608" />
-          <entry key="py" value="8380" />
-          <entry key="txt" value="212" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.edit">
-        <counts>
-          <entry key="Markdown" value="2608" />
-          <entry key="PLAIN_TEXT" value="303" />
-          <entry key="Python" value="9354" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.vcs.git.usages" />
-    </session>
-    <session id="-424710126">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="2" />
-          <entry key="project.open.time.14" value="1" />
-          <entry key="project.open.time.18" value="1" />
-          <entry key="project.open.time.30" value="1" />
-          <entry key="project.opened" value="3" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.edit">
-        <counts>
-          <entry key="gitignore" value="6" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.edit">
-        <counts>
-          <entry key="PLAIN_TEXT" value="6" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.open">
-        <counts>
-          <entry key="txt" value="2" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.open">
-        <counts>
-          <entry key="PLAIN_TEXT" value="2" />
-        </counts>
-      </usages-collector>
-    </session>
-    <session id="-675817200">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="2" />
-          <entry key="project.open.time.1" value="1" />
-          <entry key="project.open.time.17" value="1" />
-          <entry key="project.open.time.9" value="1" />
-          <entry key="project.opened" value="3" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.open">
-        <counts>
-          <entry key="ipynb" value="1" />
-          <entry key="py" value="2" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.open">
-        <counts>
-          <entry key="IPNB" value="1" />
-          <entry key="Python" value="2" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.edit">
-        <counts>
-          <entry key="Python Console" value="428" />
-          <entry key="md" value="207" />
-          <entry key="py" value="1181" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.edit">
-        <counts>
-          <entry key="Markdown" value="207" />
-          <entry key="Python" value="1609" />
-        </counts>
-      </usages-collector>
-    </session>
-  </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/PSG.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="410">
-              <caret line="212" column="51" selection-start-line="212" selection-start-column="51" selection-end-line="212" selection-end-column="51" />
+            <state relative-caret-position="51">
+              <caret line="3" column="28" selection-start-line="3" selection-start-column="28" selection-end-line="3" selection-end-column="28" />
               <folding>
-                <element signature="e#0#9#0" expanded="true" />
+                <element signature="e#6218#11696#0" expanded="true" />
                 <element signature="e#11770#23204#0" expanded="true" />
                 <element signature="e#28966#68722#0" expanded="true" />
                 <element signature="e#30167#68722#0" />
@@ -255,12 +36,12 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/README.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;MarkdownPreviewEditor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="340">
-                <caret line="11" column="297" lean-forward="true" selection-start-line="11" selection-start-column="297" selection-end-line="11" selection-end-column="297" />
+              <first_editor relative-caret-position="272">
+                <caret line="13" column="19" selection-start-line="13" selection-start-column="19" selection-end-line="13" selection-end-column="19" />
               </first_editor>
               <second_editor>
                 <markdownNavigatorState />
@@ -272,8 +53,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/.gitignore">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="102">
-              <caret line="6" selection-start-line="6" selection-end-line="6" />
+            <state relative-caret-position="119">
+              <caret line="7" selection-start-line="7" selection-end-line="7" />
             </state>
           </provider>
         </entry>
@@ -360,17 +141,18 @@
         <option value="$PROJECT_DIR$/PandExo/notebooks/HST_WFC3.ipynb" />
         <option value="$USER_HOME$/Anaconda2/envs/snakes/Lib/site-packages/pandeia/engine/telescope.py" />
         <option value="$PROJECT_DIR$/StandardTransits/trappist1e_1barN2_0.4barCO2_psginput.txt" />
-        <option value="$PROJECT_DIR$/.gitignore" />
         <option value="$PROJECT_DIR$/Thesis/thesis_calculations.ipynb" />
         <option value="$PROJECT_DIR$/StandardTransits/PSG_Shell.py" />
         <option value="$PROJECT_DIR$/README.md" />
+        <option value="$PROJECT_DIR$/.gitignore" />
         <option value="$PROJECT_DIR$/PSG.py" />
         <option value="$PROJECT_DIR$/PSG.py" />
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds">
-    <option name="x" value="953" />
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="568" />
+    <option name="y" value="-11" />
     <option name="width" value="974" />
     <option name="height" value="1047" />
   </component>
@@ -395,7 +177,8 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$USER_HOME$/Documents/Alarm" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="run.code.analysis.last.selected.profile" value="pProject Default" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
@@ -467,7 +250,6 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Jupyter Notebook.Jupyter Snakes" />
       <item itemvalue="Python.StandardTransit" />
     </list>
   </component>
@@ -587,7 +369,14 @@
       <option name="project" value="LOCAL" />
       <updated>1553206649034</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="Pathlib fully integrated, rerun for GitHub">
+      <created>1553745028198</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1553745028198</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TodoView">
@@ -600,8 +389,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="953" y="0" width="974" height="1047" extended-state="0" />
-    <editor active="true" />
+    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" sideWeight="0.49755302" weight="0.6773504" />
       <window_info id="Structure" order="1" sideWeight="0.502447" side_tool="true" weight="0.48290598" />
@@ -613,7 +401,7 @@
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" weight="0.32897604" />
-      <window_info active="true" anchor="bottom" id="Terminal" order="7" sideWeight="0.49893162" visible="true" weight="0.3932092" />
+      <window_info active="true" anchor="bottom" id="Terminal" order="7" sideWeight="0.49893162" visible="true" weight="0.38937092" />
       <window_info anchor="bottom" id="Python Console" order="8" weight="0.3340564" />
       <window_info anchor="bottom" id="Version Control" order="9" weight="0.32563257" />
       <window_info anchor="bottom" id="Event Log" order="10" sideWeight="0.50106835" side_tool="true" weight="0.3242059" />
@@ -680,7 +468,8 @@
     <MESSAGE value="Optimized non-transit disk averaging" />
     <MESSAGE value="Introducing Path functionality and finalizing for the publishing of my honors thesis" />
     <MESSAGE value="Added consistent docstrings and readme for Thesis completion" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added consistent docstrings and readme for Thesis completion" />
+    <MESSAGE value="Pathlib fully integrated, rerun for GitHub" />
+    <option name="LAST_COMMIT_MESSAGE" value="Pathlib fully integrated, rerun for GitHub" />
   </component>
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/PhaseCurves/trappist1e_1barN2_0.4barCO2_0.0_psgoutput_rad.txt" />
@@ -831,37 +620,37 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/README.md">
+      <provider selected="true" editor-type-id="split-provider[text-editor;MarkdownPreviewEditor]">
+        <state split_layout="SPLIT">
+          <first_editor relative-caret-position="272">
+            <caret line="13" column="19" selection-start-line="13" selection-start-column="19" selection-end-line="13" selection-end-column="19" />
+          </first_editor>
+          <second_editor>
+            <markdownNavigatorState />
+          </second_editor>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="119">
+          <caret line="7" selection-start-line="7" selection-end-line="7" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/PSG.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="410">
-          <caret line="212" column="51" selection-start-line="212" selection-start-column="51" selection-end-line="212" selection-end-column="51" />
+        <state relative-caret-position="51">
+          <caret line="3" column="28" selection-start-line="3" selection-start-column="28" selection-end-line="3" selection-end-column="28" />
           <folding>
-            <element signature="e#0#9#0" expanded="true" />
+            <element signature="e#6218#11696#0" expanded="true" />
             <element signature="e#11770#23204#0" expanded="true" />
             <element signature="e#28966#68722#0" expanded="true" />
             <element signature="e#30167#68722#0" />
             <element signature="e#68835#72260#0" expanded="true" />
             <element signature="e#73161#76671#0" expanded="true" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/.gitignore">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="102">
-          <caret line="6" selection-start-line="6" selection-end-line="6" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/README.md">
-      <provider selected="true" editor-type-id="split-provider[text-editor;MarkdownPreviewEditor]">
-        <state split_layout="SPLIT">
-          <first_editor relative-caret-position="340">
-            <caret line="11" column="297" lean-forward="true" selection-start-line="11" selection-start-column="297" selection-end-line="11" selection-end-column="297" />
-          </first_editor>
-          <second_editor>
-            <markdownNavigatorState />
-          </second_editor>
         </state>
       </provider>
     </entry>

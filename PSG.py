@@ -2,18 +2,13 @@ import os
 import sys
 import time
 from astropy.table import Table
-import astropy.units as u
 from netCDF4 import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-# import warnings
-# import starcoder42 as s
-# try:
-#     warnings.filterwarnings("ignore")
-#     import pandexo.engine.justdoit as jdi
-# except ImportError:
-#     pass
+import warnings
+
+warnings.filterwarnings("ignore")
 assert sys.version_info.major >= 3, "Only runs on Python 3.6 or higher"
 assert sys.version_info.minor >= 6, "Only runs on Python 3.6 or higher"
 
@@ -1857,55 +1852,56 @@ class PSG(object):
         fig.savefig("{}_depth_nois.png".format(self._file_stem))
         plt.close(fig)
 
-    def pandexo_noise(self, scope):
-        """This function creates a set instrument parameters using pandas
-        This is meant to give us noise simulations to more accurately predict
-        transits. Check parent class for more details"""
-        # TODO Create functional pandexo support
-
-        # Create a pandexo ready transit file
-        self.pand_fil = self._file_stem + "_depth.txt"
-        with open(self.pand_fil, "w") as fil:
-            for wave, dep in zip(self.Wavelengths, self.Transit):
-                fil.write("{:10.7e}{:10.7f}\n".format(wave*1e-6, dep))
-        print(self.pand_fil)
-        # Object Parameters
-        exo_dict = jdi.load_exo_dict()
-        exo_dict["observation"]["sat_level"] = 80
-        exo_dict["observation"]["sat_unit"] = "%"
-        exo_dict["observation"]["noccultations"] = 1
-        exo_dict["observation"]["R"] = None
-        exo_dict["observation"]["baseline"] = 4. * 60. * 60.
-        exo_dict["observation"]["baseline_unit"] = "total"
-        exo_dict["observation"]["noise_floor"] = 0
-
-        exo_dict["star"]["type"] = "phoenix"
-        exo_dict["star"]["mag"] = self.star_data["Magnitude"]
-        exo_dict["star"]["ref_wave"] = 1.25
-        exo_dict["star"]["temp"] = self.star_data["Temperature"]
-        exo_dict["star"]["metal"] = self.star_data["Metallicity"]
-        exo_dict["star"]["logg"] = self.star_data["Gravity"]
-        exo_dict["star"]["radius"] = self.star_data["SRadius"]
-        exo_dict["star"]["r_unit"] = "R_sun"
-
-        exo_dict["planet"]["type"] = "user"
-        exo_dict["planet"]["exopath"] = self.pand_fil
-        exo_dict["planet"]["w_unit"] = "um"
-        exo_dict["planet"]["f_unit"] = "rp^2/r*^2"
-        exo_dict["planet"]["transit_duration"] = (self.exposure_count
-                                                  * self.exposure_time)
-        exo_dict["planet"]["td_unit"] = "s"
-        exo_dict["planet"]["temp"] = self.planet_data["SurfaceTemperature"]
-        exo_dict["planet"]["radius"] = self.planet_data["Radius"]
-        exo_dict["planet"]["r_unit"] = u.meter
-        exo_dict["planet"]["mass"] = self.planet_data["Mass"]
-        exo_dict["planet"]["m_unit"] = u.kilogram
-
-        # Instrument Parameters
-        inst_dict = jdi.load_mode_dict(scope)
-
-        # Runs PandExo
-        output = os.path.abspath(self._file_stem + "_pandexo.txt")
-        print(output)
-        self.pandexo_result = jdi.run_pandexo(exo_dict, inst_dict,
-                                              output_path=output)
+    # def pandexo_noise(self, scope):
+    #     """This function creates a set instrument parameters using pandas
+    #     This is meant to give us noise simulations to more accurately predict
+    #     transits. Check parent class for more details"""
+    #     # TODO Create functional pandexo support
+    #     import pandexo.engine.justdoit as jdi
+    #     import astropy.units as u
+    #     # Create a pandexo ready transit file
+    #     self.pand_fil = self._file_stem + "_depth.txt"
+    #     with open(self.pand_fil, "w") as fil:
+    #         for wave, dep in zip(self.Wavelengths, self.Transit):
+    #             fil.write("{:10.7e}{:10.7f}\n".format(wave*1e-6, dep))
+    #     print(self.pand_fil)
+    #     # Object Parameters
+    #     exo_dict = jdi.load_exo_dict()
+    #     exo_dict["observation"]["sat_level"] = 80
+    #     exo_dict["observation"]["sat_unit"] = "%"
+    #     exo_dict["observation"]["noccultations"] = 1
+    #     exo_dict["observation"]["R"] = None
+    #     exo_dict["observation"]["baseline"] = 4. * 60. * 60.
+    #     exo_dict["observation"]["baseline_unit"] = "total"
+    #     exo_dict["observation"]["noise_floor"] = 0
+    #
+    #     exo_dict["star"]["type"] = "phoenix"
+    #     exo_dict["star"]["mag"] = self.star_data["Magnitude"]
+    #     exo_dict["star"]["ref_wave"] = 1.25
+    #     exo_dict["star"]["temp"] = self.star_data["Temperature"]
+    #     exo_dict["star"]["metal"] = self.star_data["Metallicity"]
+    #     exo_dict["star"]["logg"] = self.star_data["Gravity"]
+    #     exo_dict["star"]["radius"] = self.star_data["SRadius"]
+    #     exo_dict["star"]["r_unit"] = "R_sun"
+    #
+    #     exo_dict["planet"]["type"] = "user"
+    #     exo_dict["planet"]["exopath"] = self.pand_fil
+    #     exo_dict["planet"]["w_unit"] = "um"
+    #     exo_dict["planet"]["f_unit"] = "rp^2/r*^2"
+    #     exo_dict["planet"]["transit_duration"] = (self.exposure_count
+    #                                               * self.exposure_time)
+    #     exo_dict["planet"]["td_unit"] = "s"
+    #     exo_dict["planet"]["temp"] = self.planet_data["SurfaceTemperature"]
+    #     exo_dict["planet"]["radius"] = self.planet_data["Radius"]
+    #     exo_dict["planet"]["r_unit"] = u.meter
+    #     exo_dict["planet"]["mass"] = self.planet_data["Mass"]
+    #     exo_dict["planet"]["m_unit"] = u.kilogram
+    #
+    #     # Instrument Parameters
+    #     inst_dict = jdi.load_mode_dict(scope)
+    #
+    #     # Runs PandExo
+    #     output = os.path.abspath(self._file_stem + "_pandexo.txt")
+    #     print(output)
+    #     self.pandexo_result = jdi.run_pandexo(exo_dict, inst_dict,
+    #                                           output_path=output)
