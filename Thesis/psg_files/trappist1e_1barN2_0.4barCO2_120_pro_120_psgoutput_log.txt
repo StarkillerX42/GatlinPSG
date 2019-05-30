@@ -1,2 +1,0 @@
-WARNING | PUMAS | Accurate scattering calculations with 'Cloud' would require a higher number of Legendre polynomials (NMAX=3 and LMAX=12).
-WARNING | PUMAS | Accurate scattering calculations with 'WaterIce' would require a higher number of Legendre polynomials (NMAX=3 and LMAX=12).

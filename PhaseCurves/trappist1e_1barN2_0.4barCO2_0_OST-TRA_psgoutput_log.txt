@@ -1,1 +1,0 @@
-WARNING | PUMAS | Accurate scattering calculations would require a higher number of Legendre polynomials (NMAX=14 and LMAX=56).

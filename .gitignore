@@ -1,6 +1,7 @@
 *.pyc
 *.png
 *.key
+*.txt
 ModelFiles
 Papers
 UROP
